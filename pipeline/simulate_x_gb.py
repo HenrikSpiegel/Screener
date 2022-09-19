@@ -95,7 +95,7 @@ if __name__ == "__main__":
     outdir    = f"data/simulated_data/quantification/{jobtag}/"
     #Preppring and running job
     if QuantifierMap.is_success(outdir):
-        print("Quantification Already run - skipping...")
+        print("Quantification Already run - skipping...",  file=sys.stderr)
     else:
         dependencies = [job_ids[x] for x in ("runid_camisim","runid_antismash_input") if x in job_ids]
         api = QuantifierMap(reads=readsfile, reference=reference, output_dir=outdir)
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                 print("Assembly already run and is success - skipping" , file=sys.stderr)
                 run_assembly=False
             else:
-                print("Resetting outdir and rerunning assembly - previous run appears to have failed.")
+                print("Resetting outdir and rerunning assembly - previous run appears to have failed.", file=sys.stderr)
                 shutil.rmtree(assembly_outdir)
                 run_assembly=True
 
@@ -159,6 +159,6 @@ if __name__ == "__main__":
                 **antismash_qsub)
             print(f"Running Antismash assembly id {runid_antismash_assembly}", file=sys.stderr)
     ########################
-    print(job_ids)
+    sys.stdout.write(str(job_ids))
 
             
