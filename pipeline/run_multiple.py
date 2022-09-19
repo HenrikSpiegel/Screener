@@ -1,7 +1,7 @@
 import os
 import subprocess
 import time
-gbs_to_run = [x*10**-y for x in (1,2) for y in (0,1,2,3)]
+gbs_to_run = [x*10**-y for x in range(1,10) for y in (1,2,3)] + [1]
 
 id_map = dict()
 for gb in gbs_to_run:
