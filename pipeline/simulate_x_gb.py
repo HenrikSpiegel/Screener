@@ -4,13 +4,17 @@ import shutil
 import re
 
 from pipeline.general_functions import submit2
+
 import scripts.qsub_camisim as camisim
 import scripts.qsub_ncbiFetch as ncbifetch
 import scripts.qsub_antismash as antismash
+from scripts.qsub_base import Base
 from scripts.qsub_assemble import Assembler
 from scripts.qsub_mapquantifier import QuantifierMap
 
-working_dir = "/home/projects/dtu_00009/people/henspi/git/AntibioticaScreening/project"
+api_base = Base()
+
+working_dir = api_base.working_dir
 ncbi_id_file = "config/ids_simulation_genomes.txt"
 
 if __name__ == "__main__":
@@ -155,5 +159,6 @@ if __name__ == "__main__":
                 **antismash_qsub)
             print(f"Running Antismash assembly id {runid_antismash_assembly}", file=sys.stderr)
     ########################
+    print(job_ids)
 
             

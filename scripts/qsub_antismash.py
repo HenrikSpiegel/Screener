@@ -9,7 +9,7 @@ def gen_qsub_args(working_dir, **kwargs):
     scriptname = os.path.basename(__file__).split(".")[0]
     qsub_args = dict(
         directory = working_dir,
-        modules = "tools antismash/6.1.1",
+        modules = "tools anaconda3/2021.11 antismash/6.1.1",
         runtime = 60,
         cores = 30,
         ram = 100,

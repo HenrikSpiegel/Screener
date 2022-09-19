@@ -4,12 +4,12 @@ import pathlib
 from scripts.functions import submit2
 
 class Base:
-    working_dir = "/home/projects/dtu_00009/people/henspi/git/AntibioticaScreening/project"
+    working_dir = "/home/projects/dtu_00009/people/henspi/git/Screener"
 
     #Configs: should be moved to a real config file:
     @property
     def working_dir(self):
-        return "/home/projects/dtu_00009/people/henspi/git/AntibioticaScreening/project"
+        return "/home/projects/dtu_00009/people/henspi/git/Screener"
 
     def as_abspath(self, path):
         #simple wrapper to add the wdir to a relative path.
