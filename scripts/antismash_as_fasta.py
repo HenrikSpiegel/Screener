@@ -2,12 +2,12 @@ import sys, os
 from typing import List
 from Bio import SeqIO
 import argparse
-from tqdm import tqdm
+#from tqdm import tqdm
 
 def gbk_files_to_fasta(file_paths: List[str], output_file = "data/simulated_data/quantification/input_genomes_gbc.fa"):
     out_fh = open(output_file, "w")
     try:
-        for fp in tqdm(file_paths):
+        for fp in file_paths:
             name = os.path.basename(fp).replace(".gbk","")
             records = SeqIO.parse(fp, "genbank")
             for record in records:
