@@ -1,0 +1,4 @@
+##gff-version 3
+NZ_CP053893.1.region002	barrnap:0.7	rRNA	12040	13521	0	+	.	Name=16S_rRNA;product=16S ribosomal RNA
+NZ_CP053893.1.region002	barrnap:0.7	rRNA	13744	16618	0	+	.	Name=23S_rRNA;product=23S ribosomal RNA
+NZ_CP053893.1.region002	barrnap:0.7	rRNA	16697	16806	7.3e-11	+	.	Name=5S_rRNA;product=5S ribosomal RNA

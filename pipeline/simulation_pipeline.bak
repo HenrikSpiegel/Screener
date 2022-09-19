@@ -1,0 +1,78 @@
+from cProfile import run
+import os, sys, time
+import pathlib
+
+from general_functions import submit2
+
+
+working_dir = "/home/projects/dtu_00009/people/henspi/git/AntibioticaScreening/project"
+id_list = "config/ids_simulation_genomes.txt"
+
+
+if __name__ == "__main__":
+    
+    ## Fetch required ids.
+    id_fp = os.path.join(working_dir, id_list)
+    if not os.path.isfile(id_fp):
+        raise IOError("Expected id_list.txt not found -> "+id_fp)
+
+    ncbi_ids = [entry.strip() for line in open(id_fp, "r").readlines() for entry in line.split()]
+    print(f"Found {len(ncbi_ids)} ids in file", file=sys.stderr)
+
+    call_fetch_fastas = f"""\
+python3 {os.path.join(working_dir, "scripts/ncbi_fetch.py")} \
+--ncbi_ids {" ".join(ncbi_ids)} \
+--outdir {os.path.join(working_dir, 'data/simulated_data/input_genomes')} \
+"""
+    jobname = "fetch"
+    runid_fetch = submit2(
+        command = call_fetch_fastas,
+        jobname=jobname,
+        directory = working_dir,
+        modules = "tools anaconda3/2020.07",
+        runtime = 20,
+        cores = 10,
+        ram = 30,
+        group = "dtu_00009",
+        output = os.path.join(working_dir,"logs", jobname+"_output.txt"),
+        error = os.path.join(working_dir,"logs", jobname+"_stderr.txt"),
+    )
+    print("fetch jobid: " + runid_fetch, file=sys.stderr)
+    time.sleep(1) #allow run to enter system.
+
+    # TODO: Consider doing a direct check if finished instead of using que:
+    # check if fastas script ran correctly
+    # We could check if combined exists and has the correct size.
+#     combined_fasta = 
+    fastafile = os.path.join(working_dir, "data/simulated_data/input_genomes/combined.fasta")
+
+    antismash_out = os.path.join(working_dir, "data/simulated_data/input_genomes/antismash")
+    pathlib.Path(antismash_out).mkdir(parents=True, exist_ok=True)
+
+    call_run_antismash = f"""\
+antismash --output-dir {antismash_out} \
+--taxon bacteria \
+--cpus 30 \
+--genefinding-tool prodigal \
+{fastafile} \
+"""
+    jobname = "antismash"
+    runid_antismash = submit2(
+        dependency=[runid_fetch], #waits until fetchid finishes with qsub:ok
+        command = call_run_antismash,
+        jobname=jobname,
+        directory = working_dir,
+        modules = "tools antismash/6.1.1",
+        runtime = 120,
+        cores = 30,
+        ram = 100,
+        group = "dtu_00009",
+        output = os.path.join(working_dir,"logs", jobname+"_output.txt"),
+        error = os.path.join(working_dir,"logs", jobname+"_stderr.txt"),
+        #test=True
+    )
+    print("antismash jobid: " + runid_antismash, file=sys.stderr)
+    
+
+
+
