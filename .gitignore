@@ -157,5 +157,4 @@ logs/*
 notebooks/.vscode/
 data.bak/
 .vscode/
-notebooks/
 .vscode/
