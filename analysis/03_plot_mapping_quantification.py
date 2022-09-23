@@ -9,7 +9,7 @@ import plotly.express as px
 from scripts.qsub_base import Base
 
 def gather_reference_quantification(
-        quantification_dir: str="data/simulated_data/quantification/", 
+        quantification_dir: str="data/simulated_data/quantification_map/", 
         expected_labels: List[str]=None):
     
     summary_files = glob.glob(os.path.join(quantification_dir, "*/cmseq_summation.tsv"))

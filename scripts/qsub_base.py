@@ -17,12 +17,12 @@ class Base:
     
     @property
     def log_setup(self):
-        setup = dict(
-            name = self.__class__.__name__,
-            level = logging.DEBUG,
-            log_file = None
-        )    
-        return setup
+        return dict(
+                name = self.__class__.__name__,
+                level = logging.DEBUG,
+                log_file = None
+            )    
+
     @property
     def log(self):
         if not hasattr(self, "_log"):
@@ -35,7 +35,8 @@ class Base:
             
             logger.setLevel(setup["level"])
             
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+            F = "[%(asctime)s %(name)s:%(funcName)s]%(levelname)s: %(message)s"
+            formatter = logging.Formatter(F, datefmt='%d-%b-%y %H:%M:%S')
             stream_handler = logging.StreamHandler()
             stream_handler.setFormatter(formatter)
             stream_handler.setLevel(setup["level"])
@@ -51,6 +52,14 @@ class Base:
                 logger.debug("logfile at -> "+setup["log_file"])
             self._log = logger
         return self._log
+    
+    def add_external_log(self, log: logging.Logger):
+        self.log.debug(f"Adding -> {log.handlers}")
+        for handler in log.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                continue
+            self.log.addHandler(handler)
+
   
     @property
     def default_qsub_requirement(self) -> dict:

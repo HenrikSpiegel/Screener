@@ -9,9 +9,9 @@ if __name__ == "__main__":
     id_map = dict()
     for gb in gbs_to_run:
         print("--"+str(gb), file=sys.stderr)
-        batcmd = f"python -m pipeline.simulate_x_gb --readsGB {gb}"
+        batcmd = f"python -m pipeline.simulate_x_gb --readsGB {gb} --runQuantifierMap --runQuantifierKmer"
         result = subprocess.check_output(batcmd, shell=True)
         id_map[str(gb)]=result.decode()
         time.sleep(1)
 
-    sys.stdout.write(id_map)
+    sys.stdout.write(str(id_map)) #TODO: Use json dump instead.

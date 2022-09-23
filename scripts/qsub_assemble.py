@@ -12,7 +12,7 @@ from scripts.qsub_base import Base
 class Assembler(Base):
     def __init__(self, reads_interleaved: str, output_dir: str="data/simulated_data/assembly/default", log: logging.Logger=None) -> None:
         if log:
-            self._log=log
+            self.add_external_log(log)
 
         self.output_dir = output_dir
         self.reads_interleaved = reads_interleaved
