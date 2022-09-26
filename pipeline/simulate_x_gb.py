@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     jobtag = camisim.gen_prefix(args.readsGB)
     job_ids = {}
-    log = get_log(jobtag, lvl=logging.INFO)
+    log = get_log(jobtag, lvl=logging.DEBUG)
 
     ###### Fetch required ids. ######
     id_fp = os.path.join(working_dir, ncbi_id_file)
@@ -140,7 +140,7 @@ if __name__ == "__main__":
             log.info("Quantification-by-mapping Already run - skipping...")
         else:
             dependencies = [job_ids[x] for x in ("runid_camisim","runid_antismash_input") if x in job_ids]
-            api = QuantifierMap(reads=readsfile, reference=reference, output_dir=outdir, log=log)
+            api = QuantifierMap(reads=readsfile, reference=reference, output_dir=outdir, minMapQ=30, log=log)
             api.preflight(check_input=False)
             api.set_qsub_args(jobtag=jobtag, dependency=dependencies)
             api.generate_syscall() #not needed as we run the default
@@ -159,8 +159,8 @@ if __name__ == "__main__":
             log.info("Quantification-by-kmer already run - skipping ...")
         else:
             if not os.path.isdir(catalogue):
-                raise_w_log(log, IOError, "Catalogue files not found - must exists at init - check scripts/kmer_gen_catalogue for simple catalogue", )
-            api = QuantifierKmer(reads=readsfile, fp_catalogue=catalogue, output_dir=outdir, kmer_size = 21, log=log) #This should be in a config somewhere.
+                raise_w_log(log, IOError, "Catalogue files not found - must exists at init - check scripts/kmer_gen_catalogue for simple catalogue")
+            api = QuantifierKmer(reads=readsfile, fp_catalogue=catalogue, output_dir=outdir, kmer_size = 15, log=log) #This should be in a config somewhere.
             api.preflight(check_input=False) 
             api.set_qsub_args(jobtag=jobtag)
             api.generate_syscall() #not needed as we run the default

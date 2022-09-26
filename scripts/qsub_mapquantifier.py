@@ -10,12 +10,14 @@ from scripts.functions import submit2
 from scripts.qsub_base import Base
 
 class QuantifierMap(Base):
-    def __init__(self, reads:str, reference:str, output_dir: str,log: logging.Logger=None) -> None:
+    def __init__(self, reads:str, reference:str, output_dir: str, minMapQ: int=30, log: logging.Logger=None) -> None:
         if log:
-            self._log=log
-        self.reads = self.as_abspath(reads)
-        self.reference = self.as_abspath(reference)
-        self.output_dir = self.as_abspath(output_dir)
+            self.add_external_log(log)
+        
+        self.reads      = reads
+        self.reference  = reference
+        self.output_dir = output_dir
+        self.minMapQ    = minMapQ
 
 
     qsub_requirements = dict(
@@ -40,37 +42,22 @@ class QuantifierMap(Base):
         pathlib.Path(os.path.dirname(self.output_dir)).mkdir(parents=True, exist_ok=True)
 
     def generate_syscall(self) -> None:
-        # sets mem / cpu based on default qsub args.
-
-        # if not self.reference.endswith(".gbk"):
         syscall=f"""\
 set -e        
 minimap2 -t {self.qsub_args['cores']-2} -a {self.reference} {self.reads} > {os.path.join(self.output_dir, "aln.sam")} 
+
 #Sort and index the resulting .sam file from the mapping.
 samtools sort --threads {self.qsub_args['cores']-2} --write-index -o {os.path.join(self.output_dir, "sorted.aln.bam")} {os.path.join(self.output_dir, "aln.sam")}
-samtools mpileup -a {os.path.join(self.output_dir, "sorted.aln.bam")} | awk '{{print $1"\t"$2"\t"$4}}' > {os.path.join(self.output_dir, "coverage.tsv")} 
+
+#Get by position coverage
+samtools mpileup --min-MQ {self.minMapQ} -a {os.path.join(self.output_dir, "sorted.aln.bam")} | awk '{{print $1"\t"$2"\t"$4}}' > {os.path.join(self.output_dir, "coverage.tsv")}
+samtools mpileup --min-MQ 0 -a {os.path.join(self.output_dir, "sorted.aln.bam")} | awk '{{print $1"\t"$2"\t"$4}}' > {os.path.join(self.output_dir, "coverage_raw.tsv")}  
 #Get summation.
-python3 -m cmseq.breadth_depth -f {os.path.join(self.output_dir, "sorted.aln.bam")} > {os.path.join(self.output_dir, "cmseq_summation.tsv")}
+python3 -m cmseq.breadth_depth --minqual {self.minMapQ} -f {os.path.join(self.output_dir, "sorted.aln.bam")} > {os.path.join(self.output_dir, "cmseq_summation.tsv")}
+python3 -m cmseq.breadth_depth --minqual 0 -f {os.path.join(self.output_dir, "sorted.aln.bam")} > {os.path.join(self.output_dir, "cmseq_summation_raw.tsv")}
 """
         self._syscall = syscall
         return
-
-#         self.log.info("reformatting reference .gbk to .fa before launching minimap2")
-#         ref_fasta = os.path.basename(self.reference).replace(".gbk", ".fa")
-#         ref_fasta = os.path.join(self.output_dir, ref_fasta)
-#         syscall=f"""\
-# python -m scripts.gbk2fa --gbk {self.reference} --fa {ref_fasta}
-# minimap2 -t {self.qsub_args['cores']-2} -a {ref_fasta} {self.reads} > {os.path.join(self.output_dir, "aln.sam")} 
-# #Sort and index the resulting .sam file from the mapping.
-# samtools sort --threads {self.qsub_args['cores']-2} --write-index -o {os.path.join(self.output_dir, "sorted.aln.bam")} {os.path.join(self.output_dir, "aln.sam")}
-# #Get summation.
-# python3 -m cmseq.breadth_depth {os.path.join(self.output_dir, "sorted.aln.bam")} > summation.txt
-# """
-#         call_convert=f"python -m scripts.gbk2fa --gbk {self.reference} --fa {ref_fasta}"
-#         syscall = "\n".join([call_convert, syscall])
-#         self._syscall = syscall
-        
-
 
     @staticmethod
     def is_success(output_dir) -> str:
@@ -91,9 +78,9 @@ if __name__ == "__main__":
     # outdir    = args.o
 
     #IO
-    readsfile = "data/simulated_data/camisim/0_1GB/sample_0/reads/anonymous_reads.fq.gz"
+    readsfile = "data/simulated_data/camisim/0_01GB/sample_0/reads/anonymous_reads.fq.gz"
     reference = "data/simulated_data/antismash/input_genomes/combined_bgc.fa"
-    outdir    = "data/simulated_data/quantification/0_1GB/"
+    outdir    = "data/simulated_data/quantification_map/0_1GB/"
     #Preppring and running job
     api = QuantifierMap(reads=readsfile, reference=reference, output_dir=outdir)
     api.preflight(check_input=True)

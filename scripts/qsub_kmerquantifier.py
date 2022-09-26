@@ -6,7 +6,7 @@ import logging
 from typing import List, Union
 
 class QuantifierKmer(Base):
-    def __init__(self, reads:str, fp_catalogue:Union[str, List[str]], output_dir: str, kmer_size = 21, log: logging.Logger=None) -> None:
+    def __init__(self, reads:str, fp_catalogue:Union[str, List[str]], output_dir: str, kmer_size = 12, log: logging.Logger=None) -> None:
         if log:
             self.add_external_log(log)
         
@@ -72,7 +72,7 @@ class QuantifierKmer(Base):
 set -e
 # Create kmer database
 echo "Creating DB"
-zcat {self.reads} | jellyfish count -m 21 -s {self.qsub_args['ram']-5} -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
+zcat {self.reads} | jellyfish count -m {self.kmer_size} -s {self.qsub_args['ram']-5} -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
 
 # Get counts for catalogue(s)
 in="${{1:-{self.fp_catalogue_index}}}"
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument("--reads", required=True, help="file containing reads to be mapped")
     parser.add_argument("--catalogue", required=True, help="Path to catalogue file or dir with multiple catalogue files (.fa) - must exist on init.")
     parser.add_argument("-o", required=True, help="output dir")
-    parser.add_argument("-k", default=21, help="Kmer length [21]")
+    parser.add_argument("-k", default=12, help="Kmer length [12]")
     args = parser.parse_args()
 
     api = QuantifierKmer(reads=args.reads, fp_catalogue=args.catalogue, output_dir=args.o, kmer_size = args.k)

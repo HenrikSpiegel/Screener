@@ -11,7 +11,7 @@ if __name__ == "__main__":
         print("--"+str(gb), file=sys.stderr)
         batcmd = f"python -m pipeline.simulate_x_gb --readsGB {gb} --runQuantifierMap --runQuantifierKmer"
         result = subprocess.check_output(batcmd, shell=True)
-        id_map[str(gb)]=result.decode()
+        id_map[str(gb)]=result.decode().strip()
         time.sleep(1)
 
     sys.stdout.write(str(id_map)) #TODO: Use json dump instead.

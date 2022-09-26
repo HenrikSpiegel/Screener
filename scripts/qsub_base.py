@@ -58,6 +58,7 @@ class Base:
         for handler in log.handlers:
             if isinstance(handler, logging.StreamHandler):
                 continue
+            self.log.debug(f"Adding -> {handler}")
             self.log.addHandler(handler)
 
   
