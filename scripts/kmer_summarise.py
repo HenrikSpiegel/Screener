@@ -9,6 +9,7 @@ def get_summary_frame(directory: str, file_fuzzy: str = "*.counted"):
         contig = file.rsplit("/",1)[1].split(".counted")[0]
 
         df = pd.read_csv(file, sep=" ", names=["mer","mer_count"])
+        #df["mer_count"] = 2*df["mer_count"]
         df_res = df.describe().transpose().reset_index(drop=True)
         df_res["Contig"] = contig
         df_res["count_nonzero"] = len(df.query("mer_count > 0"))

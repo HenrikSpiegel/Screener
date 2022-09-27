@@ -43,7 +43,6 @@ class Base:
             logger.addHandler(stream_handler)
             
             if setup["log_file"]:
-                
                 pathlib.Path(os.path.dirname(setup["log_file"])).mkdir(parents=True, exist_ok=True)
                 file_handler = logging.FileHandler(setup["log_file"])
                 file_handler.setFormatter(formatter)
@@ -54,12 +53,14 @@ class Base:
         return self._log
     
     def add_external_log(self, log: logging.Logger):
-        self.log.debug(f"Adding -> {log.handlers}")
-        for handler in log.handlers:
-            if isinstance(handler, logging.StreamHandler):
-                continue
-            self.log.debug(f"Adding -> {handler}")
-            self.log.addHandler(handler)
+        self.log.addHandler(log.handlers[1])
+        # self.log.debug()
+        # self.
+        # for handler in log.handlers:
+        #     if isinstance(handler, logging.StreamHandler):
+        #         continue
+        #     self.log.debug(f"Adding -> {handler}")
+        #     self._log.addHandler(handler)
 
   
     @property
@@ -94,8 +95,8 @@ class Base:
             directory = self.working_dir,
             group="dtu_00009",
             jobname=jobname,
-            output = os.path.join("logs", jobname+ "_stdout"),
-            error = os.path.join("logs", jobname+ "_stderr")
+            output = os.path.join("logs", "qsub", jobname+ "_stdout"),
+            error = os.path.join("logs","qsub", jobname+ "_stderr")
         ))
         qsub_args.update(kwargs)
         self._qsub_args = qsub_args

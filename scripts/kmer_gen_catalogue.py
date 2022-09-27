@@ -3,6 +3,7 @@ import pathlib
 import sys
 import os
 from Bio.Seq import Seq
+import configparser
 
 def kmerise(seq, k:int=21):
     if len(seq) < k:
@@ -28,8 +29,8 @@ def generate_raw_kmer_catalogue(fasta: str, outdir: str="", k:int=21) -> int:
                 fp_out = os.path.join(outdir, filename)
                 print("writting -> "+fp_out, file=sys.stderr)
                 with open(fp_out, "w") as fh:
-                    kmers_cannonical = {canonicalize(x) for x in kmerise(seq, k)}
-                    entries = [f">kmer{i}\n{kmer}" for i, kmer in enumerate(kmers_cannonical)]
+                    #kmers_cannonical = {canonicalize(x) for x in kmerise(seq, k)}
+                    entries = [f">kmer{i}\n{kmer}" for i, kmer in enumerate(kmerise(seq, k))]
                     fh.write("\n".join(entries))
                     catalogues += 1
                 
@@ -44,8 +45,8 @@ def generate_raw_kmer_catalogue(fasta: str, outdir: str="", k:int=21) -> int:
         fp_out = os.path.join(outdir, filename)
         print("writting -> "+fp_out, file=sys.stderr)
         with open(fp_out, "w") as fh:
-            kmers_cannonical = {canonicalize(x) for x in kmerise(seq, k)}
-            entries = [f">kmer{i}\n{kmer}" for i, kmer in enumerate(kmers_cannonical)]
+            #kmers_cannonical = {canonicalize(x) for x in kmerise(seq, k)}
+            entries = [f">kmer{i}\n{kmer}" for i, kmer in enumerate(kmerise(seq, k))]
             fh.write("\n".join(entries))
             catalogues += 1
     return catalogues
@@ -57,13 +58,21 @@ if __name__ == "__main__":
 
     parser.add_argument('-o', "--outdir", help='output directory', required=True)
     parser.add_argument('-f', "--fastas", nargs='+', help='path(s) to fastafiles to catalogue (multi fasta is split)', required=True)
-    parser.add_argument('-k', default = 15, type=int, help="lenght of mers.")
+    parser.add_argument('-k', type=int, help="Overwrites project_config.ini")
     args = parser.parse_args()
 
+    config = configparser.ConfigParser()
+    config.read("config/project_config.ini")
+
+    if args.k:
+        kmer = args.k
+    else:
+        kmer=config.getint("KmerQuantification","KmerLength")
     pathlib.Path(args.outdir).mkdir(parents=True, exist_ok=True)
-    sys.stderr.write(f"Generating catalogue from ({len(args.fastas)}) fastafiles. \n")
+
+    sys.stderr.write(f"Generating ({kmer})-mer catalogue(s) from ({len(args.fastas)}) fastafile(s). \n")
     i = 0
     for fasta in args.fastas:
-        i += generate_raw_kmer_catalogue(fasta=fasta, outdir=args.outdir, k=args.k)
+        i += generate_raw_kmer_catalogue(fasta=fasta, outdir=args.outdir, k=kmer)
         
     sys.stderr.write(f"Finished generating ({i}) catalogues\n")

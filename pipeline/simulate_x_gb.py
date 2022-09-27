@@ -1,3 +1,4 @@
+import configparser
 import glob
 import os, sys
 import shutil
@@ -20,7 +21,7 @@ api_base = Base()
 working_dir = api_base.working_dir
 ncbi_id_file = "config/ids_simulation_genomes.txt"
 
-def get_log(tag, logdir = "logs/pipeline", lvl=logging.DEBUG):
+def get_log(jobtag, logdir = "logs/pipeline", lvl=logging.DEBUG):
     log_name = os.path.basename(__file__).split(".")[0]+"_"+jobtag
     logger = logging.getLogger(log_name)
     
@@ -33,7 +34,7 @@ def get_log(tag, logdir = "logs/pipeline", lvl=logging.DEBUG):
     formatter = logging.Formatter(F, datefmt='%d-%b-%y %H:%M:%S')
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
-    stream_handler.setLevel(lvl)
+    #stream_handler.setLevel(lvl)
     logger.addHandler(stream_handler)
     
     if logdir:
@@ -44,7 +45,7 @@ def get_log(tag, logdir = "logs/pipeline", lvl=logging.DEBUG):
         pathlib.Path(os.path.dirname(fp_log)).mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(fp_log)
         file_handler.setFormatter(formatter)
-        file_handler.setLevel(lvl)
+        #file_handler.setLevel(lvl)
         logger.addHandler(file_handler)
         logger.debug("logfile at -> "+fp_log)
     return logger
@@ -67,6 +68,9 @@ if __name__ == "__main__":
     jobtag = camisim.gen_prefix(args.readsGB)
     job_ids = {}
     log = get_log(jobtag, lvl=logging.DEBUG)
+
+    config = configparser.ConfigParser()
+    config.read("config/project_config.ini")
 
     ###### Fetch required ids. ######
     id_fp = os.path.join(working_dir, ncbi_id_file)
@@ -159,8 +163,15 @@ if __name__ == "__main__":
             log.info("Quantification-by-kmer already run - skipping ...")
         else:
             if not os.path.isdir(catalogue):
-                raise_w_log(log, IOError, "Catalogue files not found - must exists at init - check scripts/kmer_gen_catalogue for simple catalogue")
-            api = QuantifierKmer(reads=readsfile, fp_catalogue=catalogue, output_dir=outdir, kmer_size = 15, log=log) #This should be in a config somewhere.
+                log.warning("Generating catalogue files")
+                os.system(f"python3 scripts/kmer_gen_catalogue.py --fastas data/simulated_data/antismash/input_genomes/combined_bgc.fa -o {catalogue}")
+                #raise_w_log(log, IOError, "Catalogue files not found - must exists at init - check scripts/kmer_gen_catalogue for simple catalogue")
+            api = QuantifierKmer(
+                reads=readsfile, 
+                fp_catalogue=catalogue, 
+                output_dir=outdir, 
+                kmer_size = config.getint("KmerQuantification","KmerLength"), 
+                log=log)
             api.preflight(check_input=False) 
             api.set_qsub_args(jobtag=jobtag)
             api.generate_syscall() #not needed as we run the default

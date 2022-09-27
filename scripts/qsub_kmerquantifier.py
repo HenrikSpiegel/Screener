@@ -28,7 +28,7 @@ class QuantifierKmer(Base):
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
         with open(self.fp_catalogue_index, "w") as fh:
             lines = [name+" "+path for name,path in zip(bgc_name, self.catalogues)]
-            fh.write("\n".join(lines))
+            fh.write("\n".join(lines)+"\n")
 
 
         self.kmer_size = kmer_size
@@ -38,17 +38,17 @@ class QuantifierKmer(Base):
         self.fp_readmer = os.path.join(output_dir, f"read_{kmer_size}mers_.jf")
 
     qsub_requirements = dict(
-        modules = "tools anaconda3/2021.05 jellyfish/2.2.10",
+        modules = "tools anaconda3/2021.05 jellyfish/2.3.0",
         runtime = 30,
         cores = 19,
         ram=80,
         )
     
-    @property
-    def log_setup(self):
-        setup = super().log_setup
-        setup.update({"level":logging.INFO})
-        return setup
+    # @property
+    # def log_setup(self):
+    #     setup = super().log_setup
+    #     setup.update({"level":logging.INFO})
+    #     return setup
 
     def preflight(self, check_input=False) -> None:
         if check_input:
@@ -72,7 +72,7 @@ class QuantifierKmer(Base):
 set -e
 # Create kmer database
 echo "Creating DB"
-zcat {self.reads} | jellyfish count -m {self.kmer_size} -s {self.qsub_args['ram']-5} -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
+zcat {self.reads} | jellyfish count -m {self.kmer_size} -s 5G -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
 
 # Get counts for catalogue(s)
 in="${{1:-{self.fp_catalogue_index}}}"
@@ -84,7 +84,7 @@ do
 	## avoid commented filename ##
 	#[[ $file = \#* ]] && continue
     call="jellyfish query {self.fp_readmer} -s $path"
-    echo "Counting for:"
+    echo "Counting for: $name"
 	$call > {self.fp_countdir}/$name.counted
 done < "${{in}}"
 
@@ -100,7 +100,7 @@ gzip {self.fp_countdir}
 
     @staticmethod
     def is_success(output_dir) -> str:
-        return os.path.isfile(os.path.join(output_dir, "kmer_summatation.tsv"))
+        return os.path.isfile(os.path.join(output_dir, "kmer_summation.tsv"))
 
 if __name__ == "__main__":
 
