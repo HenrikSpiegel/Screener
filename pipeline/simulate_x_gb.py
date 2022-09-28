@@ -173,7 +173,7 @@ if __name__ == "__main__":
                 kmer_size = config.getint("KmerQuantification","KmerLength"), 
                 log=log)
             api.preflight(check_input=False) 
-            api.set_qsub_args(jobtag=jobtag)
+            api.set_qsub_args(jobtag=jobtag, dependency=job_ids.get("runid_camisim",[]))
             api.generate_syscall() #not needed as we run the default
             api.add_to_que()
             job_ids["QuantifierKmer"] = api.job_id
