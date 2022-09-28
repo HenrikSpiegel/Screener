@@ -99,9 +99,11 @@ def add_genomic_annotation(fig, genbank_record, custom_annot: List[dict]=[]):
 
 
 if __name__ == "__main__":
+    import sys
+    sys.stderr.write("--- Running: "+__file__+"\n")
 
     outdir = "results/02_bgc_coverage"
-    coverage_files = "data/simulated_data/quantification/*GB/coverage.tsv"
+    coverage_files = "data/simulated_data/quantification_map/*GB/coverage.tsv"
     genbank_dir = "data/simulated_data/antismash/input_genomes"
 
     custom_annotation = gen_rrna_annot("results/man_rrna_detection_all_bgc.txt")

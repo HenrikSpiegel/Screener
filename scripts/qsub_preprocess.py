@@ -46,7 +46,7 @@ class Preprocessor(Base):
         # if not self.reference.endswith(".gbk"):
         syscall=f"""
 set -e
-sickle pe --gzip-output -l 100 -c {self.reads_file} -t sanger -m {self.fp_out_interleaved} -s {self.fp_out_singles}
+sickle pe --gzip-output -l 100 --pe-combo {self.reads_file} -t sanger -m {self.fp_out_interleaved} -s {self.fp_out_singles}
     """
         self._syscall = syscall
         return

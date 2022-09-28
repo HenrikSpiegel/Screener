@@ -6,11 +6,13 @@ import logging
 from typing import List, Union
 
 class QuantifierKmer(Base):
-    def __init__(self, reads:str, fp_catalogue:Union[str, List[str]], output_dir: str, kmer_size = 12, log: logging.Logger=None) -> None:
+    def __init__(self, read_files:Union[str, List[str]], fp_catalogue:Union[str, List[str]], output_dir: str, kmer_size = 12, log: logging.Logger=None) -> None:
         if log:
             self.add_external_log(log)
         
-        self.reads      = reads
+        if isinstance(read_files, str):
+            read_files = [read_files]
+        self.read_files      = read_files
 
         # Create a mapping between catalogue and their fps
         if isinstance(fp_catalogue, list):
@@ -57,9 +59,11 @@ class QuantifierKmer(Base):
                 err_msg = f"Catalogue files not found -> {[file for file, exists in zip(self.catalogues, catalogues_exist) if not exists]}"
                 self.log.error(err_msg)
                 raise IOError(err_msg)
-            if not os.path.isfile(self.reads):
-                self.log.error("Reads file not found -> "+self.reads)
-                raise IOError("Reads file not found -> "+self.reads)
+
+            
+            if not all(os.path.isfile(file) for file in self.read_files):
+                self.log.error("Reads file not found -> "+self.read_files)
+                raise IOError("Reads file not found -> "+self.read_files)
             self.log.info("Found all input files")
 
         pathlib.Path(os.path.dirname(self.output_dir)).mkdir(parents=True, exist_ok=True)
@@ -72,7 +76,7 @@ class QuantifierKmer(Base):
 set -e
 # Create kmer database
 echo "Creating DB"
-zcat {self.reads} | jellyfish count -m {self.kmer_size} -s 5G -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
+zcat {" ".join(self.read_files)} | jellyfish count -m {self.kmer_size} -s 5G -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
 
 # Get counts for catalogue(s)
 in="${{1:-{self.fp_catalogue_index}}}"
@@ -107,10 +111,10 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--reads", required=True, help="file containing reads to be mapped")
+    parser.add_argument("--reads", required=True, help="file(s) containing reads to be mapped")
     parser.add_argument("--catalogue", required=True, help="Path to catalogue file or dir with multiple catalogue files (.fa) - must exist on init.")
     parser.add_argument("-o", required=True, help="output dir")
-    parser.add_argument("-k", default=12, help="Kmer length [12]")
+    parser.add_argument("-k", default=21, help="Kmer length [21]")
     args = parser.parse_args()
 
     api = QuantifierKmer(reads=args.reads, fp_catalogue=args.catalogue, output_dir=args.o, kmer_size = args.k)

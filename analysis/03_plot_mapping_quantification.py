@@ -62,10 +62,15 @@ def calculate_error_metrics(df: pd.DataFrame) -> pd.DataFrame:
     return df_out
 
 if __name__ == "__main__":
+
+    import configparser
+    config = configparser.ConfigParser()
+    config.read("config/project_config.ini")
+
     plot_width = 800
     plot_height = 500
     import pathlib
-    input_dir = "data/simulated_data/quantification/"
+    input_dir = "data/simulated_data/quantification_map/"
     outdir = "results/03_mapping_quantification"
     fp_df       =   os.path.join(outdir, "map_quantification_summary.csv")
     fp_plot_avg =   os.path.join(outdir, "average_quantificatoon_errors.png")
@@ -77,8 +82,15 @@ if __name__ == "__main__":
     print("Running: " + __file__, "outdir -> "+outdir, sep="\n",file=sys.stderr)
 
     #The expected range of simulations: # TODO: add as project config.
-    gbs_to_run = np.round([x*10**-y for x in range(1,10) for y in (1,2,3)] + [1], 3)
-    gbs_to_run.sort()
+    rstep = config.getfloat("Simulation", "ReadsGBStep")
+    rmin = config.getfloat("Simulation", "ReadsGBMin")
+    rmax = config.getfloat("Simulation", "ReadsGBMax")
+    precision = config.get("Simulation", "ReadsGBStep").split(".")[1].__len__()
+    gbs_to_run = np.round(np.arange(rmin, rmax+rstep, rstep), precision).tolist()
+
+    if config.get("Simulation", "ReadsGBExtra", fallback=None):
+        gbs_extra = [float(x) for x in config.get("Simulation", "ReadsGBExtra").split(",")]
+        gbs_to_run.extend(gbs_extra)
     expected_labels = [Base.gen_prefix(gb) for gb in gbs_to_run]
 
     print("Collecting quantification files and calculating error metrics", file=sys.stderr)

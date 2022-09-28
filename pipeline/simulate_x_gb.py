@@ -15,6 +15,7 @@ from scripts.qsub_base import Base
 from scripts.qsub_assemble import Assembler
 from scripts.qsub_mapquantifier import QuantifierMap
 from scripts.qsub_kmerquantifier import QuantifierKmer
+from scripts.qsub_preprocess import Preprocessor
 
 api_base = Base()
 
@@ -127,8 +128,20 @@ if __name__ == "__main__":
         log.info(f"Running Camisim id {runid_camisim}")
     
     ############ Run QC pipeline  ############
-    # TODO: Ask Trine
+    # simple version of QC pipeline - could be expanded.
+    # Dependent on CAMISIM
 
+    outdir_preprocess = f"data/simulated_data/preprocessed/{jobtag}"
+    infile_preprocess = f"data/simulated_data/camisim/{jobtag}/sample_0/reads/anonymous_reads.fq.gz"
+    if Preprocessor.is_success(outdir_preprocess):
+        log.info(f"Preprocessing output exists for {jobtag} - skipping...")
+    else:
+        api = Preprocessor(reads_interleaved=infile_preprocess, outdir=outdir_preprocess, log=log)
+        api.preflight(check_input=False)
+        api.set_qsub_args(jobtag=jobtag, dependency=job_ids.get("runid_camisim", []))
+        api.generate_syscall() #not needed as we run the default
+        api.add_to_que(test=False)
+        job_ids["Preprocessor"] = api.job_id
 
     ############ Run mapping quantification pipeline  ############
     # Dependent on antismash input and qc pipeline (for now camisim as standin)
@@ -136,15 +149,18 @@ if __name__ == "__main__":
     if not args.runQuantifierMap:
         log.info("Not running runQuantifierMap pipeline, set --runQuantifierFlag flag")
     else:
-        readsfile = f"data/simulated_data/camisim/{jobtag}/sample_0/reads/anonymous_reads.fq.gz"
+        readsfiles = [
+            f"data/simulated_data/preprocessed/{jobtag}/trimmed.anonymous_reads.fq.gz",
+            f"data/simulated_data/preprocessed/{jobtag}/trimmed.single.anonymous_reads.fq.gz"
+        ]
         reference = "data/simulated_data/antismash/input_genomes/combined_bgc.fa"
         outdir    = f"data/simulated_data/quantification_map/{jobtag}/"
         #Preppring and running job
         if QuantifierMap.is_success(outdir):
             log.info("Quantification-by-mapping Already run - skipping...")
         else:
-            dependencies = [job_ids[x] for x in ("runid_camisim","runid_antismash_input") if x in job_ids]
-            api = QuantifierMap(reads=readsfile, reference=reference, output_dir=outdir, minMapQ=30, log=log)
+            dependencies = [job_ids[x] for x in ("Preprocessor","runid_antismash_input") if x in job_ids]
+            api = QuantifierMap(reads=readsfiles, reference=reference, output_dir=outdir, minMapQ=30, log=log)
             api.preflight(check_input=False)
             api.set_qsub_args(jobtag=jobtag, dependency=dependencies)
             api.generate_syscall() #not needed as we run the default
@@ -155,7 +171,10 @@ if __name__ == "__main__":
     if not args.runQuantifierKmer:
         log.info("Not running runQuantifierKmer pipeline, set --runQuantifierKmer flag")
     else:
-        readsfile   = f"data/simulated_data/camisim/{jobtag}/sample_0/reads/anonymous_reads.fq.gz"
+        readsfiles = [
+            f"data/simulated_data/preprocessed/{jobtag}/trimmed.anonymous_reads.fq.gz",
+            f"data/simulated_data/preprocessed/{jobtag}/trimmed.single.anonymous_reads.fq.gz"
+        ]
         catalogue   = f"data/simulated_data/quantification_kmer/bgc_catalogues"
         outdir      = f"data/simulated_data/quantification_kmer/{jobtag}/"
 
@@ -167,13 +186,13 @@ if __name__ == "__main__":
                 os.system(f"python3 scripts/kmer_gen_catalogue.py --fastas data/simulated_data/antismash/input_genomes/combined_bgc.fa -o {catalogue}")
                 #raise_w_log(log, IOError, "Catalogue files not found - must exists at init - check scripts/kmer_gen_catalogue for simple catalogue")
             api = QuantifierKmer(
-                reads=readsfile, 
+                read_files=readsfiles, 
                 fp_catalogue=catalogue, 
                 output_dir=outdir, 
                 kmer_size = config.getint("KmerQuantification","KmerLength"), 
                 log=log)
             api.preflight(check_input=False) 
-            api.set_qsub_args(jobtag=jobtag, dependency=job_ids.get("runid_camisim",[]))
+            api.set_qsub_args(jobtag=jobtag, dependency=job_ids.get("Preprocessor",[]))
             api.generate_syscall() #not needed as we run the default
             api.add_to_que()
             job_ids["QuantifierKmer"] = api.job_id

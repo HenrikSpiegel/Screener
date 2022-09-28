@@ -4,16 +4,18 @@ import os
 import pathlib
 import re
 import sys
-from typing import List
+from typing import List, Union
 
 from scripts.functions import submit2
 from scripts.qsub_base import Base
 
 class QuantifierMap(Base):
-    def __init__(self, reads:str, reference:str, output_dir: str, minMapQ: int=30, log: logging.Logger=None) -> None:
+    def __init__(self, reads:Union[str, List[str]], reference:str, output_dir: str, minMapQ: int=30, log: logging.Logger=None) -> None:
         if log:
             self.add_external_log(log)
         
+        if isinstance(reads, str):
+            reads = [reads]
         self.reads      = reads
         self.reference  = reference
         self.output_dir = output_dir
@@ -44,7 +46,7 @@ class QuantifierMap(Base):
     def generate_syscall(self) -> None:
         syscall=f"""\
 set -e        
-minimap2 -t {self.qsub_args['cores']-2} -a {self.reference} {self.reads} > {os.path.join(self.output_dir, "aln.sam")} 
+minimap2 -t {self.qsub_args['cores']-2} -a {self.reference} {" ".join(self.reads)} > {os.path.join(self.output_dir, "aln.sam")} 
 
 #Sort and index the resulting .sam file from the mapping.
 samtools sort --threads {self.qsub_args['cores']-2} --write-index -o {os.path.join(self.output_dir, "sorted.aln.bam")} {os.path.join(self.output_dir, "aln.sam")}
