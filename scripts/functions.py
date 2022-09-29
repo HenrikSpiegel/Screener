@@ -62,7 +62,7 @@ def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_0
     if modules != '':
         script += 'module purge' + '\n'
         script += 'module load ' + modules + '\n'
-
+    script += "set -e" +'\n' #if any calls fail the whole script return non-zero.
     script += command + '\n'
     # The submit
     if test:
