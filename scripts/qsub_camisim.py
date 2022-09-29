@@ -1,4 +1,7 @@
+import shutil
+from scripts.qsub_base import Base
 
+import logging
 import os, sys, time
 import re
 from typing import Callable
@@ -7,64 +10,61 @@ import io
 import pathlib
 import glob
 
-from scripts.functions import submit2
-def gen_prefix(reads_gb:int) -> str:
-    return str(reads_gb).replace(".","_")+"GB"
+class Camisim(Base):
+    def __init__(self, readsGB:float=0.2, n_samples:int=2, outdir:str="data/camisim",seed=29092022, log: logging.Logger=None) -> None:
+        """
+        Generates a synthetic metagenomic sample.
+        The outdir determines the high level dir, while each dataset (readsGB) are
+        placed in their own subdirectories.
+        """
+        if log:
+            self.add_external_log(log)
+        
+        self.readsGB = readsGB
+        self.datalabel = self.gen_prefix(readsGB)
+        self.n_samples = n_samples
+        self.outdir = outdir
+        self.seed = seed
+        
+        # We could include that the class runs using less hardcoded reference to input genomes.
+        # Reference to genomes could be via config.ini.
+        self.fp_meta    = os.path.join(self.outdir, "meta.tsv")
+        self.fp_id_map  = os.path.join(self.outdir, "id_map.tsv")
+        self.fp_distri  = os.path.join(self.outdir, "distribution.tsv")
 
-def gen_qsub_args(working_dir:str=None, job_tag:str="", **kwargs):
-    if working_dir is None:
-        working_dir=os.getcwd()
+        self.dir_datalabel  = os.path.join(self.outdir, self.datalabel)
+        self.fp_config      = os.path.join(self.outdir, 'configs', f"{self.datalabel}_config.ini")
+        
 
-    scriptname = os.path.basename(__file__).split(".")[0]
-    scriptname = "_".join([scriptname, job_tag])
-    qsub_args = dict(
-        directory = working_dir,
+    qsub_requirements = dict(
         modules = "tools anaconda3/2021.11 perl samtools/1.13 camisim/1.3",
         runtime = 120,
         cores = 30,
         ram=100,
-        group="dtu_00009",
-        jobname=scriptname,
-        output = os.path.join(working_dir, "logs", scriptname+ "_stdout"),
-        error = os.path.join(working_dir, "logs", scriptname+ "_stderr")
-    )
-    qsub_args.update(kwargs)
-    return qsub_args
+        )
 
+    def generate_supporting_files(self):
+        """
+        Generates the config files needed to run CAMISIM for frozen set of input genomes with variable mass of
+        reads generated.
+        These could be generated running from the script allowing easier adjustments.
 
-def generate_syscall(reads_GB:int, working_dir:str =None) -> str:
-    if working_dir is None:
-        working_dir = os.getcwd()
-    file_prefix = gen_prefix(reads_GB)
-    config_fp = f"data/simulated_data/camisim/{file_prefix}_config.ini"
-    call_run_camisim = f"""\
-python /services/tools/camisim/1.3/metagenomesimulation.py {os.path.join(working_dir, config_fp)}
-mv {os.path.join(working_dir, f"data/simulated_data/camisim/{file_prefix}/*sample_0")} {os.path.join(working_dir, f"data/simulated_data/camisim/{file_prefix}/sample_0")}
+        #Note this is done slightly convoluted due to errors writing \t files in a manual fashion.
+        """
+        if not os.path.isfile(self.fp_id_map):
+            self.log.debug(f"writting -> {self.fp_id_map}")
+            id_to_genome_str = f"""\
+Genome1, data/simulated_data/input_genomes/NC_014328_1.fa
+Genome2, data/simulated_data/input_genomes/NZ_CP020566_1.fa
+Genome3, data/simulated_data/input_genomes/NZ_CP053893_1.fa
+Genome4, data/simulated_data/input_genomes/NZ_LT906445_1.fa
+Genome5, data/simulated_data/input_genomes/NZ_LT906470_1.fa
 """
-    return call_run_camisim
-
-def _generate_supportingfiles(reads_GB: float):
-    """
-    Generates the config files needed to run CAMISIM for frozen set of input genomes with variable mass of
-    reads generated.
-
-    """
-    file_prefix = gen_prefix(reads_GB)
-    working_dir = os.getcwd()
-    id_to_genome_fh = f"data/simulated_data/camisim/id_map.tsv"
-    if not os.path.isfile(id_to_genome_fh):
-        id_to_genome_str = f"""\
-Genome1,{working_dir}/data/simulated_data/input_genomes/NC_014328_1.fa
-Genome2,{working_dir}/data/simulated_data/input_genomes/NZ_CP020566_1.fa
-Genome3,{working_dir}/data/simulated_data/input_genomes/NZ_CP053893_1.fa
-Genome4,{working_dir}/data/simulated_data/input_genomes/NZ_LT906445_1.fa
-Genome5,{working_dir}/data/simulated_data/input_genomes/NZ_LT906470_1.fa
-"""
-        pd.read_csv(io.StringIO(id_to_genome_str), sep=",").to_csv(id_to_genome_fh, sep="\t", index=False)
-   
-    metadata_fh = f"data/simulated_data/camisim/meta.tsv"
-    if not os.path.isfile(metadata_fh):
-        metadata_str = """\
+            pd.read_csv(io.StringIO(id_to_genome_str), sep=",").to_csv(self.fp_id_map, sep="\t", index=False)
+    
+        if not os.path.isfile(self.fp_meta):
+            self.log.debug(f"writting -> {self.fp_meta}")
+            metadata_str = """\
 genome_ID,OTU,NCBI_ID,novelty_category
 Genome1,x,748727,known_species
 Genome2,x,39777,known_species
@@ -72,37 +72,32 @@ Genome3,x,1520,known_species
 Genome4,x,29466,known_species
 Genome5,x,248315,known_species
     """
-        pd.read_csv(io.StringIO(metadata_str), sep=",").to_csv(metadata_fh, sep="\t", index=False)
-    distribution_fh = "data/simulated_data/camisim/distribution.tsv"
-    if not os.path.isfile(distribution_fh):
-        distribution_str = """\
+            pd.read_csv(io.StringIO(metadata_str), sep=",").to_csv(self.fp_meta, sep="\t", index=False)
+
+        if not os.path.isfile(self.fp_distri):
+            self.log.debug(f"writting -> {self.fp_distri}")
+            distribution_str = """\
 Genome1,0.2
 Genome2,0.2
 Genome3,0.2
 Genome4,0.2
 Genome5,0.2
 """
-        pd.read_csv(io.StringIO(distribution_str), sep=",").to_csv(distribution_fh, sep="\t", index=False)
+            pd.read_csv(io.StringIO(distribution_str), sep=",").to_csv(self.fp_distri, sep="\t", index=False)
 
-def _generate_config(reads_GB: float, seed=20220709):
-    file_prefix = gen_prefix(reads_GB)
-    working_dir = os.getcwd()
-    outdir = os.path.join(working_dir, f"data/simulated_data/camisim/{file_prefix}")
-
-    #id_to_genome_fh = os.path.join(working_dir, f"data/simulated_data/camisim/{file_prefix}_id_map.tsv")
-    #metadata_fh = os.path.join(working_dir, f"data/simulated_data/camisim/{file_prefix}_meta.tsv")
-    config_fp = f"data/simulated_data/camisim/{file_prefix}_config.ini"
-    config_content = f"""\
+    def generate_config(self):
+        config_content = f"""\
 [Main]
 # maximum number of processes
-max_processors=30
+max_processors={self.qsub_requirements["cores"]-1}
+seed={self.seed}
 
 # 0: community design + read simulator,
 # 1: read simulator only
 phase=0
 
 # ouput directory, where the output will be stored (will be overwritten if set in from_profile)
-output_directory={outdir}
+output_directory={self.dir_datalabel}
 
 # temporary directory
 temp_directory=/tmp
@@ -120,7 +115,7 @@ anonymous=True
 compress=1
 
 # id of dataset, used in foldernames and is prefix in anonymous sequences
-dataset_id={file_prefix}
+dataset_id={self.datalabel}
 
 # Read Simulation settings, relevant also for from_profile
 [ReadSimulator]
@@ -155,12 +150,14 @@ fragment_size_standard_deviation=27
 # Only relevant if not from_profile is run:
 [CommunityDesign]
 # specify the samples size in Giga base pairs
-size={reads_GB}
+size={self.readsGB}
 
-distribution_file_paths= data/simulated_data/camisim/distribution.tsv
+#Note each sample must have its won distribution_file_path, even if they are the same.
+#distribution_file_paths={self.fp_distri}
+distribution_file_paths={",".join(self.fp_distri for x in range(self.n_samples))}
 
 # how many different samples?
-number_of_samples=1
+number_of_samples={self.n_samples}
 
 # how many communities
 num_communities=1
@@ -178,8 +175,8 @@ strain_simulation_template=/services/tools/camisim/1.3/scripts/StrainSimulationW
 [community0]
 # information about all included genomes:
 # can be used for multiple samples
-metadata=data/simulated_data/camisim/meta.tsv
-id_to_genome_file=data/simulated_data/camisim/id_map.tsv
+metadata={self.fp_meta}
+id_to_genome_file={self.fp_id_map}
 
 # how many genomes do you want to sample over all?
 genomes_total=5
@@ -192,7 +189,7 @@ ratio=1
 
 # which kind of different samples do you need?
 #   replicates / timeseries_lognormal / timeseries_normal / differential
-mode=
+mode=replicates
 
 # Part: community design
 # Set parameters of log-normal and normal distribution, number of samples
@@ -205,59 +202,69 @@ log_mu=1
 # do you want to see a distribution before you decide to use it? yes/no
 view=no\
 """
-    with open(config_fp, "w") as fh:
-        fh.write(config_content)
+        with open(self.fp_config, "w") as fh:
+            fh.write(config_content)
 
 
-def preflight(reads_GB, seed=20220709):
-    ## should raise error if outdir is full
-    ## outdir can be read from config file.
-    file_prefix = gen_prefix(reads_GB)
-    pathlib.Path("data/simulated_data/camisim").mkdir(parents=True, exist_ok=True)
-    
-    #check if the output dir already exists.
-    outdir = f"data/simulated_data/camisim/{file_prefix}"
-    if os.path.isdir(outdir):
-        raise RuntimeError("Output directory already exists - camisim cancelled. -> "+outdir)
+    def preflight(self, check_input=False) -> None:
 
-    _generate_supportingfiles(reads_GB=reads_GB)
-    _generate_config(reads_GB=reads_GB)
 
-def output_exists(reads_gb: int) -> bool:
-    """Checks if the output from the run already exists.
-    Can be used as a check to see if the job ran succesfully,
-    or if the job doesn't need to run.
-    """
-    reads_fp =  f"data/simulated_data/camisim/{gen_prefix(reads_gb)}/sample_0/reads/anonymous_reads.fq.gz"
-    return os.path.isfile(reads_fp)
-    # reads_dir = f"data/simulated_data/camisim/{gen_prefix(reads_gb)}/sample_0/reads"
-    # if not os.path.isdir(reads_dir):
-    #     print("CAMISIM: Output dir not found")
-    #     return False
-    # file_names = os.listdir(reads_dir)
-    # n_output_fasta_files = len(re.findall("(Genome[1-5][1,2])", "".join(file_names)))
-    # print(f"CAMISIM: Found ({n_output_fasta_files}/10) outputfiles", file=sys.stderr)
-    # return n_output_fasta_files == 10 #TODO: probably shouldn't be hardcoded.
+        if os.path.isdir(self.dir_datalabel):
+            if self.is_success(self.dir_datalabel):
+                raise RuntimeError("Camisim Already Run - Please reset directory.")
+            self.log.warning(f"Removing files from previous failed runs -> {self.dir_datalabel}")
+            shutil.rmtree(self.dir_datalabel)
+
+        if check_input:
+            input_files = glob.glob("data/simulated_data/input_genomes/*.fa")
+            if len(input_files) != 6:
+                msg = "Didnt find input files (5 genomes .fa + 1 combined.fa)"
+                self.log.error(msg)
+                raise IOError(msg)
+            self.log.info("Found all input files")
+        
+        self.log.debug("Generating supporting files and run config.")
+        pathlib.Path(os.path.join(self.outdir, 'configs')).mkdir(parents=True, exist_ok=True)
+        self.generate_supporting_files()
+        self.generate_config()
+
+    def generate_syscall(self) -> None:
+        # sets mem / cpu based on default qsub args.
+
+        syscall=f"""\
+python /services/tools/camisim/1.3/metagenomesimulation.py --debug {self.fp_config}
+
+#Cleanup generated sample names.
+START=0
+END={self.n_samples-1}
+for (( c=$START; c<=$END; c++ ))
+do
+    cmd="mv {self.dir_datalabel}/*sample_$c {self.dir_datalabel}/sample_$c"
+    $cmd
+done
+
+python scripts/camisim_describe_run.py -d {self.dir_datalabel}
+
+touch {os.path.join(self.dir_datalabel, "success")}
+"""    
+        self._syscall = syscall
+        return
+
+    @staticmethod
+    def is_success(output_dir) -> str:
+        return os.path.isfile(os.path.join(output_dir, "success"))
 
 if __name__ == "__main__":
+
     import argparse
-    ## Front matter - handle input parsing
     parser = argparse.ArgumentParser()
-    parser.add_argument('--readGB', required=True, help="Size out output(reads) in giga bases")
+    parser.add_argument('--readsGB', required=True, help="Size out output(reads) in giga bases")
+    parser.add_argument('--nSamples', default=2, type=int, help="Number of sample to generate [2]")
+    parser.add_argument('-o', default="data/simulated_data/camisim", help="Top directory, subdirectory for readGB is created[data/simulated_data/camisim]")
     args = parser.parse_args()
 
-
-    jobtag   = gen_prefix(args.readGB)
-    preflight(reads_GB=args.readGB)
-    qsub_kwargs = gen_qsub_args(job_tag=jobtag)
-  
-    runid_camisim = submit2(command=generate_syscall(reads_GB=args.readGB), **qsub_kwargs, test=False)
-    
-    print("camisim jobid: " + runid_camisim, file=sys.stderr)
-
-
-
-    
-
-
-
+    api = Camisim(readsGB=args.readsGB, n_samples=args.nSamples, outdir=args.o)
+    api.preflight(check_input=True)
+    api.set_qsub_args(jobtag="test")
+    api.generate_syscall() #not needed as we run the default
+    api.add_to_que(test=False)
