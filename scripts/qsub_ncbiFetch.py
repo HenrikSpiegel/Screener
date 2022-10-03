@@ -1,49 +1,37 @@
-#!/usr/bin/env python3
-import os, sys
+import os
 import pathlib
-from subprocess import call
-from typing import List, Union
+import logging
+from typing import List
 
-from scripts.functions import submit2
+from scripts.qsub_base import Base
 
-def gen_qsub_args(working_dir, **kwargs):
-    scriptname = os.path.basename(__file__).split(".")[0]
-    qsub_args = dict(
-        directory = working_dir,
+class NCBIFetch(Base):
+    def __init__(self, id_list:List[str], outdir: str,log: logging.Logger=None) -> None:
+        if log:
+            self.add_external_log(log)
+
+        self.ids = id_list
+        self.outdir = outdir
+
+    qsub_requirements = dict(
         modules = "tools anaconda3/2020.07",
         runtime = 20,
         cores = 1,
-        ram = 10,
-        group = "dtu_00009",
-        jobname=scriptname,
-        output = os.path.join(working_dir, "logs", scriptname+ "_stdout"),
-        error = os.path.join(working_dir, "logs", scriptname+ "_stderr")
-    )
-    qsub_args.update(kwargs)
-    return qsub_args
+        ram = 10
+        )
 
-def generate_syscall(working_dir: str, ids: List[str], outdir: str = None):
-    if outdir is None:
-        outdir = os.path.join(working_dir, 'data/simulated_data/input_genomes')
-        print("Outdir set to: "+outdir, file=sys.stderr)
-    call_fetchncbi = f"""\
-python {os.path.join(working_dir, "scripts/ncbi_fetch.py")} \
---ncbi_ids {" ".join(ids)} \
---outdir {outdir}\
+    def preflight(self) -> None:
+        pathlib.Path(self.outdir).mkdir(parents=True, exist_ok=True)
+
+    def generate_syscall(self) -> None:
+        # sets mem / cpu based on default qsub args.
+        syscall = f"""\
+python {"scripts/ncbi_fetch.py"} \
+--ncbi_ids {" ".join(self.ids)} \
+--outdir {self.outdir}\
 """
-    return call_fetchncbi
+        self._syscall=syscall
 
-def preflight(outdir: str):
-    if not os.path.isdir(outdir):
-        print("Creating outdir -> "+outdir, file=sys.stderr)
-        pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
-
-
-if __name__ == "__main__":
-    working_dir = "/home/projects/dtu_00009/people/henspi/git/AntibioticaScreening/project"
-    id_list = ["NZ_LT906445.1","NZ_CP053893.1","NC_014328.1","NZ_CP020566.1","NZ_LT906470.1"]
-    preflight(working_dir)
-    qsub_kwargs = gen_qsub_args(working_dir=working_dir)
-    runid_fetch = submit2(command=generate_syscall(working_dir=working_dir, ids=id_list), **qsub_kwargs)
-
-    print("ncbifetch id: " + runid_fetch, file=sys.stderr)
+    @staticmethod
+    def is_success(output_dir) -> str:
+        raise NotImplementedError
