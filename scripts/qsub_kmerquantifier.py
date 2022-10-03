@@ -6,7 +6,7 @@ import logging
 from typing import List, Union
 
 class QuantifierKmer(Base):
-    def __init__(self, read_files:Union[str, List[str]], fp_catalogue:Union[str, List[str]], output_dir: str, kmer_size = 12, log: logging.Logger=None) -> None:
+    def __init__(self, read_files:Union[str, List[str]], fp_catalogue:Union[str, List[str]], output_dir: str, kmer_size = 21, log: logging.Logger=None) -> None:
         if log:
             self.add_external_log(log)
         
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("-k", default=21, help="Kmer length [21]")
     args = parser.parse_args()
 
-    api = QuantifierKmer(reads=args.reads, fp_catalogue=args.catalogue, output_dir=args.o, kmer_size = args.k)
+    api = QuantifierKmer(read_files=args.reads, fp_catalogue=args.catalogue, output_dir=args.o, kmer_size = args.k)
     api.preflight(check_input=True)
     api.set_qsub_args(jobtag="test")
     api.generate_syscall() #not needed as we run the default

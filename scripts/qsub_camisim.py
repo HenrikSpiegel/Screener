@@ -7,7 +7,7 @@ import re
 from typing import Callable
 import pandas as pd
 import io
-import pathlib
+from pathlib import Path
 import glob
 
 class Camisim(Base):
@@ -23,17 +23,17 @@ class Camisim(Base):
         self.readsGB = readsGB
         self.datalabel = self.gen_prefix(readsGB)
         self.n_samples = n_samples
-        self.outdir = outdir
+        self.outdir = Path(outdir)
         self.seed = seed
         
         # We could include that the class runs using less hardcoded reference to input genomes.
         # Reference to genomes could be via config.ini.
-        self.fp_meta    = os.path.join(self.outdir, "meta.tsv")
-        self.fp_id_map  = os.path.join(self.outdir, "id_map.tsv")
-        self.fp_distri  = os.path.join(self.outdir, "distribution.tsv")
+        self.fp_meta    = self.outdir / "meta.tsv"   
+        self.fp_id_map  = self.outdir / "id_map.tsv"
+        self.fp_distri  = self.outdir / "distribution.tsv"
 
-        self.dir_datalabel  = os.path.join(self.outdir, self.datalabel)
-        self.fp_config      = os.path.join(self.outdir, 'configs', f"{self.datalabel}_config.ini")
+        self.dir_datalabel  = self.outdir / self.datalabel
+        self.fp_config      = self.outdir / 'configs' / f"{self.datalabel}_config.ini"
         
 
     qsub_requirements = dict(
@@ -51,18 +51,18 @@ class Camisim(Base):
 
         #Note this is done slightly convoluted due to errors writing \t files in a manual fashion.
         """
-        if not os.path.isfile(self.fp_id_map):
+        if not self.fp_id_map.is_file():
             self.log.debug(f"writting -> {self.fp_id_map}")
             id_to_genome_str = f"""\
-Genome1, data/simulated_data/input_genomes/NC_014328_1.fa
-Genome2, data/simulated_data/input_genomes/NZ_CP020566_1.fa
-Genome3, data/simulated_data/input_genomes/NZ_CP053893_1.fa
-Genome4, data/simulated_data/input_genomes/NZ_LT906445_1.fa
-Genome5, data/simulated_data/input_genomes/NZ_LT906470_1.fa
+Genome1,data/simulated_data/input_genomes/NC_014328_1.fa
+Genome2,data/simulated_data/input_genomes/NZ_CP020566_1.fa
+Genome3,data/simulated_data/input_genomes/NZ_CP053893_1.fa
+Genome4,data/simulated_data/input_genomes/NZ_LT906445_1.fa
+Genome5,data/simulated_data/input_genomes/NZ_LT906470_1.fa
 """
             pd.read_csv(io.StringIO(id_to_genome_str), sep=",").to_csv(self.fp_id_map, sep="\t", index=False)
     
-        if not os.path.isfile(self.fp_meta):
+        if not self.fp_meta.is_file():
             self.log.debug(f"writting -> {self.fp_meta}")
             metadata_str = """\
 genome_ID,OTU,NCBI_ID,novelty_category
@@ -74,7 +74,7 @@ Genome5,x,248315,known_species
     """
             pd.read_csv(io.StringIO(metadata_str), sep=",").to_csv(self.fp_meta, sep="\t", index=False)
 
-        if not os.path.isfile(self.fp_distri):
+        if not self.fp_distri.is_file():
             self.log.debug(f"writting -> {self.fp_distri}")
             distribution_str = """\
 Genome1,0.2
@@ -121,27 +121,21 @@ dataset_id={self.datalabel}
 [ReadSimulator]
 # which readsimulator to use:
 #           Choice of 'art', 'wgsim', 'nanosim', 'pbsim'
-type=art
 
-# Samtools (http://www.htslib.org/) takes care of sam/bam files. Version 1.0 or higher required!
-# file path to executable
+
 samtools=/services/tools/camisim/1.3/tools/samtools-1.3/samtools
 
-# file path to read simulation executable
+#Normal use
+type=art
 readsim=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/art_illumina
-
-#error profiles:
-#for ART:
-#HiSeq 150bp: hi150
-#MBARC-26 150bp: mbarc
-#custom profile (see below): own
-#for wgsim:
-#error rate as <float> (e.g. 0.05 for 5% error rate)
-#blank for nanosim and wgsim
 profile=mbarc
-
-# Directory containing error profiles (can be blank for wgsim)
 error_profiles=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/profiles/
+
+#Testing specific error 
+# type=wgsim
+# readsim=/services/tools/camisim/1.3/tools/wgsim/wgsim
+# profile=0.03
+# error_profiles=
 
 #paired end read, insert size (not applicable for nanosim)
 fragments_size_mean=270
@@ -154,7 +148,7 @@ size={self.readsGB}
 
 #Note each sample must have its won distribution_file_path, even if they are the same.
 #distribution_file_paths={self.fp_distri}
-distribution_file_paths={",".join(self.fp_distri for x in range(self.n_samples))}
+distribution_file_paths={",".join(self.fp_distri.__str__() for x in range(self.n_samples))}
 
 # how many different samples?
 number_of_samples={self.n_samples}
@@ -194,29 +188,27 @@ mode=replicates
 # Part: community design
 # Set parameters of log-normal and normal distribution, number of samples
 # sigma > 0; influences shape (higher sigma -> smaller peak and longer tail),
-log_sigma=2
+log_sigma=0.25
 
 # mu (real number) is a parameter for the log-scale
-log_mu=1
+log_mu=0
 
 # do you want to see a distribution before you decide to use it? yes/no
 view=no\
 """
-        with open(self.fp_config, "w") as fh:
-            fh.write(config_content)
-
+        self.fp_config.write_text(config_content)
 
     def preflight(self, check_input=False) -> None:
 
 
-        if os.path.isdir(self.dir_datalabel):
-            if self.is_success(self.dir_datalabel):
+        if self.dir_datalabel.is_dir():
+            if self.successful():
                 raise RuntimeError("Camisim Already Run - Please reset directory.")
             self.log.warning(f"Removing files from previous failed runs -> {self.dir_datalabel}")
             shutil.rmtree(self.dir_datalabel)
 
         if check_input:
-            input_files = glob.glob("data/simulated_data/input_genomes/*.fa")
+            input_files = glob.glob("data/simulated_data/input_genomes/*.fa") #TODO: set to check from genomes from config.
             if len(input_files) != 6:
                 msg = "Didnt find input files (5 genomes .fa + 1 combined.fa)"
                 self.log.error(msg)
@@ -224,7 +216,8 @@ view=no\
             self.log.info("Found all input files")
         
         self.log.debug("Generating supporting files and run config.")
-        pathlib.Path(os.path.join(self.outdir, 'configs')).mkdir(parents=True, exist_ok=True)
+        config_folder = self.outdir / "configs"
+        config_folder.mkdir(parents=True, exist_ok=True)
         self.generate_supporting_files()
         self.generate_config()
 
@@ -232,7 +225,7 @@ view=no\
         # sets mem / cpu based on default qsub args.
 
         syscall=f"""\
-python /services/tools/camisim/1.3/metagenomesimulation.py --debug {self.fp_config}
+python /services/tools/camisim/1.3/metagenomesimulation.py {self.fp_config}
 
 #Cleanup generated sample names.
 START=0
