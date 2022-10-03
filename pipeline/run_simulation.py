@@ -6,7 +6,7 @@ import pathlib
 import json
 
 
-from pipeline.general_functions import get_log, raise_w_log, submit2
+from pipeline.general_functions import get_log, raise_w_log
 from scripts.qsub_camisim import Camisim
 from scripts.qsub_preprocess import Preprocessor
 from scripts.qsub_ncbiFetch import NCBIFetch
