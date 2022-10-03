@@ -117,7 +117,12 @@ class Base:
     def output_exist(self, **kwargs) -> bool:
         raise NotImplementedError
     
-    def is_succes(self) -> bool:
+    def successful(self):
+        success_file = self.outdir / "success"
+        return success_file.exists()
+
+    @staticmethod
+    def is_success(args):
         raise NotImplementedError
 
     @staticmethod

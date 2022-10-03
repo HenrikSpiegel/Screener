@@ -250,9 +250,13 @@ touch {os.path.join(self.dir_datalabel, "success")}
         self._syscall = syscall
         return
 
+    def successful(self):
+        success_file = self.dir_datalabel / "success"
+        return success_file.exists()
+
     @staticmethod
-    def is_success(output_dir) -> str:
-        return os.path.isfile(os.path.join(output_dir, "success"))
+    def is_success(dir_datalabel) -> str:
+        return os.path.isfile(os.path.join(dir_datalabel, "success"))
 
 if __name__ == "__main__":
 
