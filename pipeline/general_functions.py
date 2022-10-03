@@ -1,3 +1,5 @@
+import logging
+import pathlib
 import sys, os
 import subprocess
 
@@ -64,3 +66,38 @@ def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_0
         job = subprocess.run(['qsub'], input=script, stdout=subprocess.PIPE, universal_newlines=True)
         jobid = job.stdout.split('.')[0]
         return jobid.strip()
+
+
+def get_log(jobtag="test", log_name=None, logdir = "logs/pipeline", lvl=logging.DEBUG):
+    if not log_name:
+        log_name = os.path.basename(__file__).split(".")[0]+"_"+jobtag
+    logger = logging.getLogger(log_name)
+    
+    #remove old handlers:
+    while logger.handlers:
+        logger.removeHandler(logger.handlers[0])
+    
+    logger.setLevel(lvl)
+    F = "[%(asctime)s %(name)s:%(funcName)s]%(levelname)s: %(message)s"
+    formatter = logging.Formatter(F, datefmt='%d-%b-%y %H:%M:%S')
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    #stream_handler.setLevel(lvl)
+    logger.addHandler(stream_handler)
+    
+    if logdir:
+        fp_log = os.path.join(logdir, log_name)
+        if os.path.isfile(fp_log): 
+            os.unlink(fp_log)
+            
+        pathlib.Path(os.path.dirname(fp_log)).mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(fp_log)
+        file_handler.setFormatter(formatter)
+        #file_handler.setLevel(lvl)
+        logger.addHandler(file_handler)
+        logger.debug("logfile at -> "+fp_log)
+    return logger
+
+def raise_w_log(log, exception:Exception, msg):
+    log.error(msg)
+    raise exception(msg)
