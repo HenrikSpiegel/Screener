@@ -76,7 +76,7 @@ class QuantifierKmer(Base):
 set -e
 # Create kmer database
 echo "Creating DB"
-zcat {" ".join(self.read_files)} | jellyfish count -m {self.kmer_size} -s 5G -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
+zcat {" ".join(str(x) for x in self.read_files)} | jellyfish count -m {self.kmer_size} -s 5G -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
 
 # Get counts for catalogue(s)
 in="${{1:-{self.fp_catalogue_index}}}"
@@ -95,16 +95,23 @@ done < "${{in}}"
 # Summarise:
 python -m scripts.kmer_summarise --directory {self.fp_countdir} -o {os.path.join(self.output_dir, "kmer_summation.tsv")}
 
+touch {os.path.join(self.output_dir, "success")}
 # compress countfiles
 gzip {self.fp_countdir}
     """
         self._syscall = syscall
         return
 
+    def successful(self):
+        success_file = self.output_dir / "success"
+        return os.path.isfile(success_file)
 
     @staticmethod
     def is_success(output_dir) -> str:
         return os.path.isfile(os.path.join(output_dir, "kmer_summation.tsv"))
+
+
+
 
 if __name__ == "__main__":
 
