@@ -75,6 +75,7 @@ The number of samples are defined in config/project_config.ini.
         readsGB=args.readsGB,
         n_samples=config.getint("Simulation","SimulatedSamples"),
         outdir = camisim_main_dir,
+        seed="",
         log=log
         )
     key_camisim = api_camisim.__class__.__name__

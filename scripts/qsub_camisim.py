@@ -126,16 +126,16 @@ dataset_id={self.datalabel}
 samtools=/services/tools/camisim/1.3/tools/samtools-1.3/samtools
 
 #Normal use
-type=art
-readsim=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/art_illumina
-profile=mbarc
-error_profiles=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/profiles/
+# type=art
+# readsim=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/art_illumina
+# profile=mbarc
+# error_profiles=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/profiles/
 
 #Testing specific error 
-# type=wgsim
-# readsim=/services/tools/camisim/1.3/tools/wgsim/wgsim
-# profile=0.03
-# error_profiles=
+type=wgsim
+readsim=/services/tools/camisim/1.3/tools/wgsim/wgsim
+profile=0.03
+error_profiles=
 
 #paired end read, insert size (not applicable for nanosim)
 fragments_size_mean=270
@@ -148,7 +148,7 @@ size={self.readsGB}
 
 #Note each sample must have its won distribution_file_path, even if they are the same.
 #distribution_file_paths={self.fp_distri}
-distribution_file_paths={",".join(self.fp_distri.__str__() for x in range(self.n_samples))}
+#distribution_file_paths={",".join(self.fp_distri.__str__() for x in range(self.n_samples))}
 
 # how many different samples?
 number_of_samples={self.n_samples}
@@ -183,7 +183,7 @@ ratio=1
 
 # which kind of different samples do you need?
 #   replicates / timeseries_lognormal / timeseries_normal / differential
-mode=replicates
+mode=differential
 
 # Part: community design
 # Set parameters of log-normal and normal distribution, number of samples

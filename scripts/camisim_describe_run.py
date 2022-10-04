@@ -27,7 +27,7 @@ def generate_simulation_overview(dir_dataset:str):
     dfs = []
     for fp_dist in glob.glob(os.path.join(dir_dataset, "distributions/*")):
         df = pd.read_csv(fp_dist, sep="\t", names=["id", "distribution"])
-        df["samle"] = "sample_" + fp_dist.rsplit("_",1)[1].replace(".txt","")
+        df["sample"] = "sample_" + fp_dist.rsplit("_",1)[1].replace(".txt","")
         df["ncbi"] = [cam2genom[x] for x in df.id]
         df["genome_size"] = [genome_size[x] for x in df.ncbi]
         df["weighted_dist"] = df.distribution * df.genome_size
