@@ -24,7 +24,7 @@ The number of samples are defined in config/project_config.ini.
 
     jobtag = Camisim.gen_prefix(args.readsGB)
     job_ids = args.dependencies
-    log = get_log(log_name="RunSimulation_"+jobtag, lvl=logging.DEBUG)
+    log = get_log(log_name="RunSimulation_"+jobtag, lvl=logging.INFO)
 
     config = configparser.ConfigParser()
     config.read("config/project_config.ini")
