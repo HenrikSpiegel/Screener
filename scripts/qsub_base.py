@@ -1,6 +1,7 @@
 import logging
 import os, sys
 import pathlib
+import time
 from scripts.functions import submit2
 
 class Base:
@@ -136,6 +137,7 @@ class Base:
             **self.qsub_args,
             test=test
         )
+        time.sleep(0.5)
         self.log.info(f"Added qsub job: {self.qsub_args['jobname']} / {id}")
         self.job_id = id
 
