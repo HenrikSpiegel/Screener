@@ -2,6 +2,7 @@ import glob
 import logging
 import os
 import pathlib
+from pathlib import Path
 import re
 import sys
 from typing import List, Union
@@ -10,16 +11,17 @@ from scripts.functions import submit2
 from scripts.qsub_base import Base
 
 class QuantifierMap(Base):
-    def __init__(self, reads:Union[str, List[str]], reference:str, output_dir: str, minMapQ: int=30, log: logging.Logger=None) -> None:
+    def __init__(self, reads:Union[str, List[str]], reference:str, output_dir: str, minMapQ: int=30, minBaseQ:int=20, log: logging.Logger=None) -> None:
         if log:
             self.add_external_log(log)
         
         if isinstance(reads, str):
             reads = [reads]
-        self.reads      = reads
-        self.reference  = reference
-        self.output_dir = output_dir
+        self.reads = [Path(x) for x in reads]
+        self.reference  = Path(reference)
+        self.output_dir = Path(output_dir)
         self.minMapQ    = minMapQ
+        self.minBaseQ   = minBaseQ
 
 
     qsub_requirements = dict(
@@ -32,38 +34,42 @@ class QuantifierMap(Base):
     def preflight(self, check_input=False) -> None:
         
         if check_input:
-            if not os.path.isfile(self.reference):
+            if not self.reference.is_file():
                 self.log.error("Reference file not found -> "+self.reference)
                 raise IOError("Reference file not found -> "+self.reference)
-            if not os.path.isfile(self.reads):
+            if not all(x.is_file() for x in self.reads):
                 self.log.error("Reads file not found -> "+self.reads)
                 raise IOError("Reads file not found -> "+self.Reads)
             self.log.info("Found all input files")
 
-
-        pathlib.Path(os.path.dirname(self.output_dir)).mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def generate_syscall(self) -> None:
         syscall=f"""\
-set -e        
-minimap2 -t {self.qsub_args['cores']-2} -a {self.reference} {" ".join(self.reads)} > {os.path.join(self.output_dir, "aln.sam")} 
+minimap2 -t {self.qsub_args['cores']-2} -a {self.reference} {" ".join(x.__str__() for x in self.reads)} > {self.output_dir / "aln.sam"} 
 
 #Sort and index the resulting .sam file from the mapping.
-samtools sort --threads {self.qsub_args['cores']-2} --write-index -o {os.path.join(self.output_dir, "sorted.aln.bam")} {os.path.join(self.output_dir, "aln.sam")}
+samtools sort --threads {self.qsub_args['cores']-2} --write-index -o {self.output_dir / "sorted.aln.bam"} {self.output_dir / "aln.sam"}
 
 #Get by position coverage
-samtools mpileup --min-MQ {self.minMapQ} -a {os.path.join(self.output_dir, "sorted.aln.bam")} | awk '{{print $1"\t"$2"\t"$4}}' > {os.path.join(self.output_dir, "coverage.tsv")}
-samtools mpileup --min-MQ 0 -a {os.path.join(self.output_dir, "sorted.aln.bam")} | awk '{{print $1"\t"$2"\t"$4}}' > {os.path.join(self.output_dir, "coverage_raw.tsv")}  
+samtools mpileup --min-MQ {self.minMapQ} --min-BQ {self.minBaseQ} -a {self.output_dir / "sorted.aln.bam"} | awk '{{print $1"\t"$2"\t"$4}}' > {self.output_dir / "coverage.tsv"}
+samtools mpileup --min-MQ 0 --min-BQ 0 -a {self.output_dir / "sorted.aln.bam"} | awk '{{print $1"\t"$2"\t"$4}}' > {self.output_dir / "coverage_raw.tsv"}  
 #Get summation.
-python3 -m cmseq.breadth_depth --minqual {self.minMapQ} -f {os.path.join(self.output_dir, "sorted.aln.bam")} > {os.path.join(self.output_dir, "cmseq_summation.tsv")}
-python3 -m cmseq.breadth_depth --minqual 0 -f {os.path.join(self.output_dir, "sorted.aln.bam")} > {os.path.join(self.output_dir, "cmseq_summation_raw.tsv")}
+python3 -m cmseq.breadth_depth --minqual {self.minBaseQ} -f {self.output_dir / "sorted.aln.bam"} > {self.output_dir / "cmseq_summation.tsv"}
+python3 -m cmseq.breadth_depth --minqual 0 -f {self.output_dir / "sorted.aln.bam"} > {self.output_dir / "cmseq_summation_raw.tsv"}
 """
         self._syscall = syscall
         return
 
+    def successful(self):
+        success_file = self.output_dir / "cmseq_summation.tsv"
+        if not success_file.is_file():
+            return False
+        return success_file.read_bytes().count(b"\n") > 2
+
     @staticmethod
     def is_success(output_dir) -> str:
-        return os.path.isfile(os.path.join(output_dir, "cmseq_summation.tsv"))
+        return (Path(output_dir) / "cmseq_summation.tsv").is_file()
 
 
 if __name__ == "__main__":
