@@ -134,7 +134,7 @@ samtools=/services/tools/camisim/1.3/tools/samtools-1.3/samtools
 #Testing specific error 
 type=wgsim
 readsim=/services/tools/camisim/1.3/tools/wgsim/wgsim
-profile=0.03
+profile=0.0
 error_profiles=
 
 #paired end read, insert size (not applicable for nanosim)
