@@ -126,20 +126,19 @@ dataset_id={self.datalabel}
 samtools=/services/tools/camisim/1.3/tools/samtools-1.3/samtools
 
 #Normal use
-# type=art
-# readsim=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/art_illumina
-# profile=mbarc
-# error_profiles=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/profiles/
+type=art
+readsim=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/art_illumina
+profile=mbarc
+error_profiles=/services/tools/camisim/1.3/tools/art_illumina-2.3.6/profiles/
 
 #Testing specific error 
-type=wgsim
-readsim=/services/tools/camisim/1.3/tools/wgsim/wgsim
-profile=0.03
-error_profiles=
+#type=wgsim
+#readsim=/services/tools/camisim/1.3/tools/wgsim/wgsim
+#profile=0.03
+#error_profiles=
 
 #paired end read, insert size (not applicable for nanosim)
-#fragments_size_mean=270
-fragments_size_mean=540
+fragments_size_mean=270
 fragment_size_standard_deviation=27
 
 # Only relevant if not from_profile is run:

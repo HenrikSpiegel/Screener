@@ -30,7 +30,7 @@ The number of samples are defined in config/project_config.ini.
     config = configparser.ConfigParser()
     config.read("config/project_config.ini")
 
-    dataset_dir = Path("data/simulated_data/camisim") / jobtag
+    dataset_dir = Path("data/simulated_data/preprocessed") / jobtag
  
     if args.dependencies:
         upstream_dependencies=list(args.dependencies.values())
