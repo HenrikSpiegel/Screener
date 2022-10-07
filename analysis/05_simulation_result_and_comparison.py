@@ -36,13 +36,17 @@ def get_simulation_overview():
 def get_kmer_summation():
     dfs = []
     for summary_file in Path("data/simulated_data/quantification_kmer/").glob("*GB/sample_*/kmer_summation.tsv"):
-        dataset = summary_file.parent.parent.name
-        sample  = summary_file.parent.name
-        df = pd.read_csv(summary_file, sep="\t")
-        df["sample"] = sample
-        df["dataset"] = dataset
-        df["quantification"] = "kmerCount"
-        dfs.append(df)
+        try:
+            dataset = summary_file.parent.parent.name
+            sample  = summary_file.parent.name
+            df = pd.read_csv(summary_file, sep="\t")
+            df["sample"] = sample
+            df["dataset"] = dataset
+            df["quantification"] = "kmerCount"
+            dfs.append(df)
+        except Exception as err:
+            print(summary_file)
+            raise err
     df_summation = pd.concat(dfs)
     return df_summation
 
@@ -109,6 +113,7 @@ if __name__ == '__main__':
     runname = get_name_for_run()
     res_dir = Path("results/") / Path(__file__).stem / runname
     res_dir.mkdir(parents=True, exist_ok=True)
+    print(f"outdir {res_dir}", file=sys.stderr)
 
     df_comb.to_csv(res_dir / "combined_simulation_and_sumation.csv")
 
