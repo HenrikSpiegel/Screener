@@ -62,7 +62,7 @@ The number of samples are defined in config/project_config.ini.
         log.info(f"Antismash on input genomes found - skipping ...")
     else: 
         api_antismash.preflight()
-        api_antismash.set_qsub_args(jobtag=jobtag)
+        api_antismash.set_qsub_args(jobtag=jobtag, dependency=job_ids.get(fetch_key, []))
         api_antismash.add_to_que()
         job_ids[antismash_key] = api_antismash.job_id
     ###
@@ -96,7 +96,7 @@ The number of samples are defined in config/project_config.ini.
     api_preprocessor = Preprocessor(reads_interleaved=read_files, outdir=preprocess_out)
     key_processor = api_preprocessor.__class__.__name__
     if api_preprocessor.successful():
-        log.info(f"Preproccor output found - skipping ...")
+        log.info(f"Preprocess output found - skipping ...")
     else:
         api_preprocessor.preflight()
         api_preprocessor.set_qsub_args(jobtag=jobtag, dependency=job_ids.get(key_camisim, []))
@@ -105,5 +105,6 @@ The number of samples are defined in config/project_config.ini.
     ###
     
     out_ids = json.dumps(job_ids)
-    log.info("Finished adding simulation jobs: "+out_ids)
-    print(job_ids)
+    log.info(f"Added ({len(job_ids)}) simulation jobs")
+    log.debug("Added jobs: "+out_ids)
+    print(json.dumps(job_ids))

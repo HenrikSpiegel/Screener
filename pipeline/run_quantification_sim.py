@@ -25,25 +25,23 @@ The number of samples are defined in config/project_config.ini.
 
     jobtag = QuantifierKmer.gen_prefix(args.readsGB)
     job_ids = {}
-    log = get_log(log_name="RunAnalysis_"+jobtag, lvl=logging.INFO)
+    log = get_log(log_name="RunQuantification_"+jobtag, lvl=logging.INFO)
 
     config = configparser.ConfigParser()
     config.read("config/project_config.ini")
 
     dataset_dir = Path("data/simulated_data/camisim") / jobtag
-    sample_set = list(dataset_dir.glob("sample_*"))
-    log.info(f"Found ({len(sample_set)}) samples in dataset")
-
+ 
     if args.dependencies:
         upstream_dependencies=list(args.dependencies.values())
+        log.info(f"Found upstream dependencies: {upstream_dependencies}")
+        log.info(f"Generating jobs on expected outputs matching sample count from config.")
+        sample_set = [dataset_dir / f"sample_{x}" for x in range(config.getint("Simulation", "SimulatedSamples"))]
+        log.info(f"Expecting ({len(sample_set)}) samples for data set.")
     else:
         upstream_dependencies=[]
-
-    if not args.runQuantifierMap:
-        log.info("Skipping QuantifierMap, missing flag -> --runQuantifierMap")
-    else:
-        pass
-
+        sample_set = list(dataset_dir.glob("sample_*"))
+        log.info(f"Found ({len(sample_set)}) samples in dataset")
 
     if not args.runQuantifierKmer:
         log.info("Skipping QuantifierKmer, missing flag -> --runQuantifierKmer")
@@ -101,5 +99,6 @@ The number of samples are defined in config/project_config.ini.
                 api_map.generate_syscall() #not needed as we run the default
                 api_map.add_to_que(test=False)
                 job_ids[map_key] = api_map.job_id
-    log.info(f"Added quantification jobs: {json.dumps(job_ids)}")
+    log.info(f"Added ({len(job_ids)}) quantification jobs")
+    log.debug(f"Added quantification jobs: {json.dumps(job_ids)}")
     print(json.dumps(job_ids))
