@@ -3,6 +3,11 @@ import os, sys
 import pathlib
 import time
 from scripts.functions import submit2
+import configparser
+
+project_config = configparser.ConfigParser()
+project_config.read("config/project_config.ini")
+
 
 class Base:
     working_dir = "/home/projects/dtu_00009/people/henspi/git/Screener"
@@ -20,7 +25,7 @@ class Base:
     def log_setup(self):
         return dict(
                 name = self.__class__.__name__,
-                level = logging.DEBUG,
+                level = logging.getLevelName(project_config.get("ProjectWide","LoggingLevel")),
                 log_file = None
             )    
 
@@ -105,7 +110,6 @@ class Base:
     @property
     def syscall(self):
         if not hasattr(self, "_syscall"):
-            self.log.warning("running default syscall")
             self.generate_syscall()
         return self._syscall
 

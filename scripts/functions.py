@@ -59,6 +59,7 @@ def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_0
     if email != '':
         script += '#PBS -M '+ email + '\n'
         script += '#PBS -m ae' + '\n'
+    script += "set -e" +'\n' #if any calls fail the whole script return non-zero.
     if modules != '':
         script += 'module purge' + '\n'
         script += 'module load ' + modules + '\n'
