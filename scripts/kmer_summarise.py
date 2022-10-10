@@ -35,5 +35,7 @@ if __name__ == "__main__":
         args.o = os.path.join(args.directory, "kmer_summation.tsv")
     
     df = get_summary_frame(args.directory, args.file_fuzzy)
+    if all([x == 0 for x in df["Depth median"]]):
+        raise RuntimeError("kmer_summarise.py: All 'Depth median' == 0")
     df.to_csv(args.o, index=False, sep="\t")
 
