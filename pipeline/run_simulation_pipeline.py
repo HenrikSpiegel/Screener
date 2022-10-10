@@ -12,7 +12,7 @@ if config.get("Simulation", "ReadsGBStep") != "":
     rstep = config.getfloat("Simulation", "ReadsGBStep")
     rmin = config.getfloat("Simulation", "ReadsGBMin")
     rmax = config.getfloat("Simulation", "ReadsGBMax")
-    precision = config.get("Simulation", "ReadsGBStep").split(".")[1].__len__()
+    precision = config.get("Simulation", "ReadsGBStep").split(".")[1].__len__() #Høker significant digits.
     gbs_to_run = np.round(np.arange(rmin, rmax+rstep, rstep), precision).tolist()
 else:
     gbs_to_run = []
@@ -20,7 +20,6 @@ else:
 if config.get("Simulation", "ReadsGBExtra", fallback=None):
     gbs_extra = [float(x.strip()) for x in config.get("Simulation", "ReadsGBExtra").split()]
     gbs_to_run.extend(gbs_extra)
-
 
 if __name__ == "__main__":
     id_map = dict()
@@ -41,17 +40,11 @@ if __name__ == "__main__":
         except Exception as err:
             print(err)
             print(" ".join(eval_cmd_list))
-            print(eval_out.stderr)
-            print(eval_out.stdout)
             raise err
 
 
         eval_ids = json.loads(eval_out.decode().strip())
-        print(gb_ids)
-        print(eval_ids)
         gb_ids.update(eval_ids)
-        print(gb_ids)
 
         id_map[str(gb)]=gb_ids
-        print(id_map)
     print(json.dumps(id_map))

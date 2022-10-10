@@ -2,7 +2,7 @@ import configparser
 import argparse
 import os, sys
 import logging
-import pathlib
+from pathlib import Path
 import json
 
 
@@ -20,6 +20,7 @@ The number of samples are defined in config/project_config.ini.
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument("--readsGB", required=True, help="VolumeOfReads (float)")
     parser.add_argument("--dependencies", default='{}', type=json.loads, help="Dictionary of upstream qsub dependencies.(json.dumps format)")
+    parser.add_argument("--clear-logs", action="store_true", help="Clear the log directory prior to run.")
     args = parser.parse_args()
 
     jobtag = Camisim.gen_prefix(args.readsGB)
@@ -30,6 +31,14 @@ The number of samples are defined in config/project_config.ini.
     config.read("config/project_config.ini")
 
     ncbi_ids = config.get("Simulation", "GenomeIDs").strip("\n").split("\n")
+
+    ### Clear old logs:
+    if args.clear_logs:
+        print("Clearing old logfiles", file=sys.stderr)
+        log_dir = Path("logs/")
+        for file in log_dir.glob("*/*std*"):
+            file.unlink()
+
 
     ### Fetching from ncbi ###
 

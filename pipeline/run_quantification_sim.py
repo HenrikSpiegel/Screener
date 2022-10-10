@@ -17,7 +17,7 @@ Pipeline for generating and preprocessing n samples for a single value of readsG
 The number of samples are defined in config/project_config.ini.
     """
     parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument("--readsGB", required=True, help="VolumeOfReads (float)")
+    parser.add_argument("--readsGB", required=True,type=float, help="VolumeOfReads (float)")
     parser.add_argument("--dependencies", default='{}', type=json.loads, help="Dictionary of upstream qsub dependencies.(json.dumps format)")
     parser.add_argument("--runQuantifierMap", action="store_true", help="If flagged runs quantification-by-mapping pipeline")
     parser.add_argument("--runQuantifierKmer", action="store_true", help="If flagged runs quantification-by-kmer pipeline")
@@ -25,24 +25,37 @@ The number of samples are defined in config/project_config.ini.
 
     jobtag = QuantifierKmer.gen_prefix(args.readsGB)
     job_ids = {}
-    log = get_log(log_name="RunQuantification_"+jobtag, lvl=logging.INFO)
 
     config = configparser.ConfigParser()
     config.read("config/project_config.ini")
 
+    log_lvl = logging.getLevelName(config.get("ProjectWide","LoggingLevel"))
+    log = get_log(log_name="RunQuantification_"+jobtag, lvl=log_lvl)
+
     dataset_dir = Path("data/simulated_data/preprocessed") / jobtag
- 
+    log.debug(f"Input dataset dir:{dataset_dir}")
+
     if args.dependencies:
         upstream_dependencies=list(args.dependencies.values())
         log.info(f"Found upstream dependencies: {upstream_dependencies}")
         log.info(f"Generating jobs on expected outputs matching sample count from config.")
         sample_set = [dataset_dir / f"sample_{x}" for x in range(config.getint("Simulation", "SimulatedSamples"))]
+        sample_readfiles = [[sample_dir / "trimmed.anonymous_reads.fq.gz", sample_dir / "trimmed.singleanonymous_reads.fq.gz"] for sample_dir in sample_set]
         log.info(f"Expecting ({len(sample_set)}) samples for data set.")
     else:
         upstream_dependencies=[]
         sample_set = list(dataset_dir.glob("sample_*"))
-        log.info(f"Found ({len(sample_set)}) samples in dataset")
+        sample_readfiles = [list(sample_dir.glob("*anonymous_reads.fq.gz")) for sample_dir in sample_set]
 
+        # is any empty
+        if not all(sample_readfiles):
+            raise RuntimeError("No readsfiles found - exiting...")
+
+        log.info(f"Found ({len(sample_set)}) samples in dataset")
+    
+    log.debug(sample_set)
+    log.debug(sample_readfiles)
+   
     if not args.runQuantifierKmer:
         log.info("Skipping QuantifierKmer, missing flag -> --runQuantifierKmer")
     else:
@@ -51,14 +64,14 @@ The number of samples are defined in config/project_config.ini.
                 log.warning("Generating catalogue files")
                 os.system(f"python3 scripts/kmer_gen_catalogue.py --fastas data/simulated_data/antismash/input_genomes/combined_bgc.fa -o {fp_catalogue}")
 
-        for sample_dir in sample_set:
+        for sample_dir, reads in zip(sample_set, sample_readfiles):
             log.debug(f"Running for sample: {sample_dir.name}")
             sample_outdir = Path("data/simulated_data/quantification_kmer") / jobtag / sample_dir.name
-            #sample_reads = list(sample_dir.glob("*reads.fq.gz"))
-            sample_reads = list(sample_dir.glob("reads/anonymous_reads.fq.gz")) #circumventing preprocesss
-            log.debug(f"Found read files: {sample_reads}")
+            log.debug(f"Output -> {sample_outdir}")
 
-            api_kmer = QuantifierKmer(read_files=sample_reads, fp_catalogue=fp_catalogue, output_dir=sample_outdir, kmer_size = config.getint("KmerQuantification","KmerLength"))
+            log.debug(f"Read files: {reads}")
+
+            api_kmer = QuantifierKmer(read_files=reads, fp_catalogue=fp_catalogue, output_dir=sample_outdir, kmer_size = config.getint("KmerQuantification","KmerLength"))
             kmer_key = api_kmer.__class__.__name__ + sample_dir.name
             if api_kmer.successful():
                 api_kmer.log.info(f"Already ran: {jobtag} {sample_dir.name} - skipping ...")
@@ -75,15 +88,13 @@ The number of samples are defined in config/project_config.ini.
         reference = "data/simulated_data/antismash/input_genomes/combined_bgc.fa"
         outdir    = f"data/simulated_data/quantification_map/{jobtag}/"
 
-        for sample_dir in sample_set:
+        for sample_dir, reads in zip(sample_set, sample_readfiles):
             log.debug(f"Running for sample: {sample_dir.name}")
             sample_outdir = Path("data/simulated_data/quantification_map") / jobtag / sample_dir.name
-            #sample_reads = list(sample_dir.glob("*reads.fq.gz"))
-            sample_reads = list(sample_dir.glob("reads/anonymous_reads.fq.gz")) #circumventing preprocesss
-            log.debug(f"Found read files: {sample_reads}")
+            log.debug(f"Read files: {reads}")
 
             api_map = QuantifierMap(
-                    reads       = sample_reads, 
+                    reads       = reads, 
                     reference   = reference, 
                     output_dir  = sample_outdir, 
                     minMapQ     = config.getint("MapQuantification", "MinMapQ"),
