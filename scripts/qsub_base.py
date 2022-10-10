@@ -131,8 +131,11 @@ class Base:
         raise NotImplementedError
 
     @staticmethod
-    def gen_prefix(reads_gb:int) -> str:
-        return str(reads_gb).replace(".","_")+"GB"
+    def gen_prefix(reads_gb:float) -> str:
+        # returns stringified float with GB suffix
+        # 1 -> 1_0GB
+        # 0.1 -> 0_1GB
+        return str(float(reads_gb)).replace(".","_")+"GB"
 
     def add_to_que(self, test=False) -> None:
         self.log.debug(f"command:\n{self.syscall}")
