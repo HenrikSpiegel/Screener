@@ -28,17 +28,11 @@ class Preprocessor(Base):
                 
     qsub_requirements = dict(
         modules = "tools sickle/20150314",
-        runtime = 60,
+        runtime = 360,
         cores = 20,
         ram=80,
         )
     
-    @property
-    def log_setup(self):
-        setup = super().log_setup
-        setup.update({"level":logging.INFO})
-        return setup
-
     def preflight(self, check_input=False) -> None:
         if check_input:
             if not os.path.isfile(self.reads_file):
@@ -54,7 +48,7 @@ class Preprocessor(Base):
 
         calls = [f"sickle pe --gzip-output -l 100 --pe-combo {infile} -t sanger -m {out_inter} -s {out_single}" for infile, out_inter, out_single in zip(self.reads_files, self.fp_outs_interleaved, self.fp_outs_singles)]
         syscall = "\n".join(calls)
-        syscall + f"""
+        syscall += f"""
 touch {self.outdir / "success"}
         """
         self._syscall = syscall

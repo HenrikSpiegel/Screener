@@ -19,7 +19,7 @@ class QuantifierKmer(Base):
             self.catalogues  = fp_catalogue
         elif os.path.isdir(fp_catalogue):
             catalogues = glob.glob(os.path.join(fp_catalogue, "*.catalogue*.fa"))
-            self.log.info(f"Catalogue size: ({len(catalogues)})")
+            self.log.debug(f"Catalogue size: ({len(catalogues)})")
             self.catalogues  = catalogues
         else:
             self.catalogues  = [fp_catalogue]
@@ -64,7 +64,7 @@ class QuantifierKmer(Base):
             if not all(os.path.isfile(file) for file in self.read_files):
                 self.log.error("Reads file not found -> "+self.read_files)
                 raise IOError("Reads file not found -> "+self.read_files)
-            self.log.info("Found all input files")
+            self.log.debug("Found all input files")
 
         pathlib.Path(os.path.dirname(self.output_dir)).mkdir(parents=True, exist_ok=True)
 
@@ -97,13 +97,15 @@ python -m scripts.kmer_summarise --directory {self.fp_countdir} -o {os.path.join
 
 touch {os.path.join(self.output_dir, "success")}
 # compress countfiles
-gzip {self.fp_countdir}
+#gzip {self.fp_countdir}
+#We need to archieve not try and zip
     """
         self._syscall = syscall
         return
 
     def successful(self):
         success_file = self.output_dir / "success"
+        self.log.debug("Run was succesful")
         return os.path.isfile(success_file)
 
     @staticmethod
@@ -128,5 +130,4 @@ if __name__ == "__main__":
     api.preflight(check_input=True)
     api.set_qsub_args(jobtag="test")
     api.generate_syscall() #not needed as we run the default
-    #print(api.syscall)
     api.add_to_que(test=False)
