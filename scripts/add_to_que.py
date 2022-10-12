@@ -20,7 +20,7 @@ if __name__ == "__main__":
     parser.add_argument("--command", required=True, help="path to script")
     parser.add_argument("--name", default="addQue_def", help="jobname")
     parser.add_argument("--test", action="store_true", help="Prints the qsub job-script to stdout and doesn't add_to_que")
-    parser.add_argument("-o", nargs="+", help="options in kw:arg kwargs passed to submit2")
+    parser.add_argument("-o", nargs="+", help="options in kw:arg kwargs passed to submit2 usage: -o runtime:360 cores:30 ")
     args = parser.parse_args()
 
     log_dir = Path("logs/add_to_que")
