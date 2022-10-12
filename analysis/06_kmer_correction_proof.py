@@ -62,13 +62,14 @@ def error_rate_variations():
     edge_loss_correction = 1 - ((k-1)/L)
     count_fully_corrected = count_error_corrected / edge_loss_correction
 
-    df_count = pd.DataFrame(count.T, columns = [f"Error rate {x}%" for x in error_rates])
+    cols = [f"{x}%" for x in error_rates]
+    df_count = pd.DataFrame(count.T, columns = cols)
     df_count["type"] = "count"
 
-    df_count_err = pd.DataFrame(count_error_corrected.T, columns = [f"Error rate {x}%" for x in error_rates])
+    df_count_err = pd.DataFrame(count_error_corrected.T, columns = cols)
     df_count_err["type"] = "Error corrected count"
 
-    df_count_final = pd.DataFrame(count_fully_corrected.T, columns = [f"Error rate {x}%" for x in error_rates])
+    df_count_final = pd.DataFrame(count_fully_corrected.T, columns = cols)
     df_count_final["type"] = "Error and Edge loss corrected count"
 
     print(f"Writing results to -> {output_dir}")
@@ -112,7 +113,7 @@ def read_length_variations():
     edge_loss_correction = 1 - ((k-1)/read_lenghts)
     count_fully_corrected = count_error_corrected / edge_loss_correction[:,np.newaxis]
 
-    cols = [f"Read Length: {x}bp" for x in read_lenghts]
+    cols = [f"{x}bp" for x in read_lenghts]
     df_count = pd.DataFrame(count.T, columns = cols)
     df_count["type"] = "count"
 
