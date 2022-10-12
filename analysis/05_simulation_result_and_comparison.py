@@ -134,41 +134,38 @@ if __name__ == '__main__':
     fig.write_image(str(res_dir/"genome_coverage.png"), height=500, width=800, scale=3)
 
 
-    # Add correction for kmer.
-    if df_comb.err_profile.dtype == np.float64:
-        print("Adding correction to match error profile", file=sys.stderr)
-        
-        df_kmer_corr = df_comb.query("quantification =='kmerCount'").copy()
-        df_kmer_corr["quantification"] = "kmerCount(corrected)"
-        corrected = df_kmer_corr["Depth median"] / (1-df_kmer_corr["err_profile"])**21
-        df_kmer_corr["Depth median"] = corrected
+    #Wrangle the data so we can get the raw count and corrected count from the kmerquant rows.
+    df_plot = df_comb.melt(
+        id_vars=["Contig","expected_average_coverage","readsGB", "quantification"], 
+        value_vars=["Depth median", 'Depth Error Corrected', 'Depth Error/Edge Corrected'],
+        value_name="estimate",
+        var_name="sub_quantification"
+    )
+    df_plot.dropna(subset=["estimate"], inplace=True)
+    df_plot.reset_index(drop=True, inplace=True)
+    quantification_name = [q if q.startswith("mapping") else f"{q}({v})" for q,v in zip(df_plot["quantification"], df_plot["sub_quantification"])]
+    df_plot["quantification_name"] = quantification_name
+    df_plot.sort_values(["Contig", "quantification_name"], inplace=True)
 
-        df_comb_corr = pd.concat([df_comb, df_kmer_corr])
-    else:
-        print("Not adding correction to match error profile", file=sys.stderr)
-        df_comb_corr = df_comb
+    # add error values
+    df_plot["error"] = df_plot["estimate"] - df_plot["expected_average_coverage"]
+    df_plot["RE"]    = df_plot["error"]/df_plot["expected_average_coverage"]
 
-    # calculating error  values
-    df_comb_corr["error"] = df_comb_corr["Depth median"] - df_comb_corr["expected_average_coverage"]
-    df_comb_corr["RE"] = df_comb_corr["error"]/df_comb_corr["expected_average_coverage"]
 
-    df_comb_corr.sort_values(["Contig","quantification"], inplace=True)
-
-    df_comb_corr.to_csv(str(res_dir/"combined_w_error.csv"))
 
     # Error comparison plots:
-    fig = px.box(df_comb_corr, x="Contig", color='quantification', y="error",facet_row="readsGB", 
-       height=2000,width=1000, points="all",
-       title="Distribution of errors for each contig.<br><sup>For multiple samples<sup>",
-       labels={'error':'Estimate - Expected', 'quantification':'Method'}
-      )
+    fig = px.box(df_plot, x="Contig", color='quantification_name', y="error",facet_row="readsGB", 
+        height=2000,width=1000, points="all",
+        title="Distribution of errors for each contig.<br><sup>For multiple samples<sup>",
+        labels={'error':'Estimate - Expected', 'quantification_name':'Method'}
+        )
     fig.update_yaxes(matches=None)
     fig.write_image(str(res_dir/"error_plot.png"), height=2000, width=1000, scale=5)
 
-    fig = px.box(df_comb_corr, x="Contig", color='quantification', y="RE",facet_row="readsGB", 
+    ffig = px.box(df_plot, x="Contig", color='quantification_name', y="RE",facet_row="readsGB", 
        height=2000,width=1000, points="all",
        title="Distribution of relative error for each contig.<br><sup>For multiple samples<sup>",
-       labels={'RE':'(Estimate - Expected)/Expected', 'quantification':'Method'}
+       labels={'RE':'(Estimate - Expected)/Expected', 'quantification_name':'Method'}
       )
     fig.write_image(str(res_dir/"relative_error_plot.png"), height=2000, width=1000, scale=5)
 
