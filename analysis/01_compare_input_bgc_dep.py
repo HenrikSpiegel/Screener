@@ -1,5 +1,3 @@
-# Run all-v-all blast (mgblast) and generate a heatmap from the results.
-
 #!/usr/bin/env python3
 
 # This script runs comparative analysis on a set of bgcs.
@@ -11,42 +9,36 @@ import time
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from pathlib import Path
 from typing import List
 from scripts.functions import submit2, check_finish,job_finished
 import scripts.qsub_needleman as needleman
 from Bio import SeqIO
 
+#workingdir = "/home/projects/dtu_00009/people/henspi/git/AntibioticaScreening/project"
+
 #### Find relevant files.
-antismash_fasta = Path("data/simulated_data/antismash/input_genomes/combined_bgc.fa")
-assert(antismash_fasta.exists())
-pairwise_dir = Path("data/simulated_data/pairwise_comparison")
-pairwise_dir.mkdir(parents=True, exist_ok=True)
-
-for record in SeqIO.parse(antismash_fasta, "fasta"):
-    outfile = pairwise_dir/"bgc_fastas"/
-
-
-
+antismashdir = "data/simulated_data/antismash/input_genomes"
+gbk_files = [x for x in os.listdir(antismashdir) if x.endswith(".gbk") and x != "combined.gbk"]
 
 #### run pairwise alignment:
 # we want to run all the pairwise combinations. 
 
 combinations = [(gbk_files[i], gbk_files[i+1::]) for i in range(len(gbk_files)-1)] #if gbk_files=[1,2,3] ->  [(1, [2,3]), (2,[3])]
+
 combined_call = []
 output_fhs = []
 for comb in combinations:
     seq1 = comb[0]
     for seq2 in comb[1]:
         output_fn = seq1.replace(".gbk","")+"_"+seq2.replace(".gbk",".align")
-        output_fh = pairwise_dir / output_fn
+        output_fh = os.path.join("data/simulated_data/pw_needle", output_fn)
         output_fhs.append(output_fh)
         seq1_fh = os.path.join(antismashdir, seq1)
         seq2_fh = os.path.join(antismashdir, seq2)
-        call = f"blastn -query {seq1_fh} -subject {seq2_fh} -outfmt 6 -max_hsps 1 > {output_fh.as_posix()}"
+        needleman.preflight(seq1_fp=seq1_fh, seq2_fp=seq2_fh, outfile=output_fh)
+        call = needleman.generate_syscall(seq1_fp=seq1_fh, seq2_fp=seq2_fh, outfile=output_fh)
         combined_call.append(call)
-print(*combined_call, sep="\n")
-sys.exit()
+
 #check if we already have the output files
 output_exists = [os.path.exists(p) for p in output_fhs]
 if any(output_exists):
