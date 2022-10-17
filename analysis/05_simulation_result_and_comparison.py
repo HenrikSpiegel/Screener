@@ -162,7 +162,7 @@ if __name__ == '__main__':
     fig.update_yaxes(matches=None)
     fig.write_image(str(res_dir/"error_plot.png"), height=2000, width=1000, scale=5)
 
-    ffig = px.box(df_plot, x="Contig", color='quantification_name', y="RE",facet_row="readsGB", 
+    fig = px.box(df_plot, x="Contig", color='quantification_name', y="RE",facet_row="readsGB", 
        height=2000,width=1000, points="all",
        title="Distribution of relative error for each contig.<br><sup>For multiple samples<sup>",
        labels={'RE':'(Estimate - Expected)/Expected', 'quantification_name':'Method'}
