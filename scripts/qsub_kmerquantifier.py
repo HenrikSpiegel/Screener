@@ -76,7 +76,7 @@ class QuantifierKmer(Base):
 set -e
 # Create kmer database
 echo "Creating DB"
-zcat {" ".join(str(x) for x in self.read_files)} | jellyfish count -m {self.kmer_size} -s 5G -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
+zcat {" ".join(x.as_posix() for x in self.read_files)} | jellyfish count -m {self.kmer_size} -s 5G -t {self.qsub_args['cores']-1} -C -o {self.fp_readmer} /dev/fd/0
 
 # Get counts for catalogue(s)
 in="${{1:-{self.fp_catalogue_index}}}"
@@ -93,13 +93,13 @@ do
 done < "${{in}}"
 
 # Summarise:
-python -m scripts.kmer_summarise --directory {self.fp_countdir} -o {os.path.join(self.output_dir, "kmer_summation.tsv")}
+average_readlength=$(python scripts/average_readlength.py -f {" ".join(x.as_posix() for x in self.read_files)})
+echo "Average readlength: $average_readlength"
+
+python -m scripts.kmer_summarise --directory {self.fp_countdir} -o {os.path.join(self.output_dir, "kmer_summation.tsv")} -e $average_readlength
 
 touch {os.path.join(self.output_dir, "success")}
-# compress countfiles
-#gzip {self.fp_countdir}
-#We need to archieve not try and zip
-    """
+"""
         self._syscall = syscall
         return
 

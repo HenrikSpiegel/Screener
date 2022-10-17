@@ -5,13 +5,6 @@ from typing import Sequence
 
 import configparser
 
-config = configparser.ConfigParser()
-config.read("config/project_config.ini")
-
-kmerlength  = config.getint("KmerQuantification", "KmerLength")
-read_length = config.getint("KmerQuantification", "AverageReadLength")
-error_rate  = config.getfloat("KmerQuantification", "PerBaseErrorRate")
-
 
 
 def error_correction(values: Sequence[float], k:int=21, error_rate:float=0.03):
@@ -40,9 +33,6 @@ def get_summary_frame(directory: str, file_fuzzy: str = "*.counted"):
         df_res["count_unique_nonzero"] = len(df.query("mer_count > 0").mer.drop_duplicates())
         df_res.rename(columns={"50%":"Depth median", "mean":"Depth avg"}, inplace=True)
 
-        df_res["Depth Error Corrected"]         = error_correction(df_res["Depth median"], k=kmerlength, error_rate=error_rate)
-        df_res["Depth Error/Edge Corrected"]    = edgeloss_correction(df_res["Depth Error Corrected"], k=kmerlength, L=read_length)
-
         df_out = df_res[["Contig"]+[x for x in df_res.columns if x != "Contig"]]
         dfs.append(df_out)
 
@@ -56,6 +46,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory",  required=True, help="Directory holding the count files from 'jellyfish query'.")
     parser.add_argument("--file_fuzzy", default="*.counted", help="Fuzzy filename for counted files.['*.counted']")
+
+    parser.add_argument("-k", "--kmerlength", type=int, help="Overwrite default settings given in config/config")
+    parser.add_argument("-l", "--readlength", type=int, help="Overwrite default settings given in config/config")
+    parser.add_argument("-e", "--error-rate", type=float, help="Overwrite default settings given in config/config")
+
     parser.add_argument("-o", help="output file [--directory / kmer_summation.tsv]")
 
     args = parser.parse_args()
@@ -66,6 +61,17 @@ if __name__ == "__main__":
     df = get_summary_frame(args.directory, args.file_fuzzy)
     if all([x == 0 for x in df["Depth median"]]):
         raise RuntimeError("kmer_summarise.py: All 'Depth median' == 0")
+
+    config = configparser.ConfigParser()
+    config.read("config/project_config.ini")
+
+
+    kmerlength  = args.kmerlength   or config.getint("KmerQuantification", "KmerLength")
+    read_length = args.readlength   or config.getint("KmerQuantification", "AverageReadLength")
+    error_rate  = args.error_rate   or config.getfloat("KmerQuantification", "PerBaseErrorRate")
+
+    df["Depth Error Corrected"]         = error_correction(df["Depth median"], k=kmerlength, error_rate=error_rate)
+    df["Depth Error/Edge Corrected"]    = edgeloss_correction(df["Depth Error Corrected"], k=kmerlength, L=read_length)
 
     df.to_csv(args.o, index=False, sep="\t")
 
