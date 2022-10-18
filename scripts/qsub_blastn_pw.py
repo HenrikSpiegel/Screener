@@ -1,28 +1,21 @@
 
-from scripts.qsub_base import Base
+import time
+from scripts.qsub_base import Base, QsubStatus
 from Bio import SeqIO
 from typing import Union, List
 from pathlib import Path
 
 class PairwiseBlast(Base):
-    def __init__(self, fasta_file: Union[Path, List[Path]], output_dir: Path):
-        if isinstance(fasta_file, List):
-            self.fasta_file = [Path(x) for x in fasta_file]
-        else:
-            self.fasta_file = [Path(fasta_file)]
-
-        assert(all(file.exists() for file in self.fasta_file))
+    def __init__(self, fasta_file: Path, output_dir: Path):
+        self.fasta_file = Path(fasta_file)
 
         self.output_dir = Path(output_dir)
-        self.fasta_dir  = Path(output_dir)/"fastas"
+        self.output_combined = Path(output_dir)/"combined_blast_results.tsv"
 
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.fasta_dir.mkdir(parents=True, exist_ok=True)
+        self.success_file = self.output_dir/'success'
 
-        self.fasta_files = []
-        self.pairwise_files = []
+        self.output_columns = "qaccver saccver pident length qcovhsp mismatch evalue bitscore"
 
-    
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.05 perl/5.30.2 ncbi-blast/2.12.0+",
         runtime = 30,
@@ -30,34 +23,48 @@ class PairwiseBlast(Base):
         ram=20,
         )
 
-    def preflight(self):
-        self.prepare_pairwise_files()
-        self.combinations = [(self.entries[i], self.entries[i+1::]) for i in range(len(self.entries)-1)]
-        calls = []
-        for comb in self.combinations:
-            f1 = comb[0]
-            for f2 in comb[1]:
-                out_fn = self.output_dir /"blast"/ (f1.stem+"-"+f2.stem)
-                self.pairwise_files.append(out_fn)
+    def preflight(self, check_input=True):
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
-            call = f"blastn -query {f1} -subject {f2} -outfmt 6 -max_hsps 1 > {out_fn}"
-            calls.append(call)
-        self.calls = calls
+        #prepare outputfile
+        self.output_combined.unlink(missing_ok=True)
+        self.output_combined.write_text(self.output_columns.replace(" ", "\t"))
 
-    def prepare_pairwise_files(self):
-        self.entries=[]
-        for file in self.fasta_file:
-            for record in SeqIO.parse(file, "fasta"):
-                outfile = self.fasta_dir/(record.name+".fa")
-                self.entries.append(outfile)
-                if outfile.is_file():
-                    continue
-                self.fasta_file.append(outfile)
-                entry = f">{record.description}\n{record.seq}"
-                outfile.write_text(entry)
+        self.success_file.unlink(missing_ok=True)
+
+        if check_input:
+            assert(self.fasta_file.exists())
+
+    # def prepare_pairwise_files(self):
+    #     self.entries=[]
+    #     for file in self.fasta_file:
+    #         for record in SeqIO.parse(file, "fasta"):
+    #             outfile = self.fasta_dir/(record.name+".fa")
+    #             self.entries.append(outfile)
+    #             if outfile.is_file():
+    #                 continue
+    #             self.fasta_file.append(outfile)
+    #             entry = f">{record.description}\n{record.seq}"
+    #             outfile.write_text(entry)
+    #     self.log.info(f"Individual fastafiles added to {self.fasta_dir}")
 
     def generate_syscall(self):
 
-        call = "\n".join(self.calls)
-        call += f"\ntouch {self.output_dir/'success'}"
+        call = f"""\
+blastn -query {self.fasta_file} -subject {self.fasta_file} -task dc-megablast -outfmt "6 {self.output_columns}" -max_hsps 1 -evalue 5000 >> {self.output_combined}
+
+touch {self.success_file}
+"""
         self._syscall=call
+
+if __name__ == "__main__":
+    
+    pb = PairwiseBlast(
+        "data/simulated_data/antismash/input_genomes/combined_bgc.fa", 
+        "data/simulated_data/pairwise")
+    pb.preflight()
+    pb.add_to_que()
+
+    pb.wait_for_finish()
+
+    
