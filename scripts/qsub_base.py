@@ -1,17 +1,26 @@
+import subprocess
 import logging
 import os, sys
-import pathlib
+from pathlib import Path
 import time
 from scripts.functions import submit2
 import configparser
+from enum import Enum
 
 project_config = configparser.ConfigParser()
 project_config.read("config/project_config.ini")
 
+class QsubStatus(Enum):
+    UNKNOWN = None
+    RUNNING  = "R"
+    HOLDING  = "H"
+    QUEING   = "Q"
+    COMPLETE = "C"
+
 
 class Base:
     working_dir = "/home/projects/dtu_00009/people/henspi/git/Screener"
-
+    QsubStatus = QsubStatus
     #Configs: should be moved to a real config file:
     @property
     def working_dir(self):
@@ -49,7 +58,7 @@ class Base:
             logger.addHandler(stream_handler)
             
             if setup["log_file"]:
-                pathlib.Path(os.path.dirname(setup["log_file"])).mkdir(parents=True, exist_ok=True)
+                Path(os.path.dirname(setup["log_file"])).mkdir(parents=True, exist_ok=True)
                 file_handler = logging.FileHandler(setup["log_file"])
                 file_handler.setFormatter(formatter)
                 file_handler.setLevel(setup["level"])
@@ -101,8 +110,8 @@ class Base:
             directory = self.working_dir,
             group="dtu_00009",
             jobname=jobname,
-            output = os.path.join("logs", "qsub", jobname+ "_stdout"),
-            error = os.path.join("logs","qsub", jobname+ "_stderr")
+            output = Path("logs")/"qsub"/ (jobname+ "_stdout"),
+            error = Path("logs")/"qsub"/ (jobname+ "_stderr")
         ))
         qsub_args.update(kwargs)
         self._qsub_args = qsub_args
@@ -112,6 +121,31 @@ class Base:
         if not hasattr(self, "_syscall"):
             self.generate_syscall()
         return self._syscall
+
+    @property
+    def qstat_dict(self) -> dict:
+        if not hasattr(self, "job_id") or not self.job_id:
+            self.log.error("No job id - first add to que.")
+            return {}
+
+        qstat_return = subprocess.run(["qstat", "-f", str(self.job_id)], capture_output=True)
+        qstat = qstat_return.stdout.decode()
+        qstat_dict = {}
+        for line in qstat.split("\n"):
+            line=line.strip()
+            if line.startswith("exit_status"):
+                qstat_dict['exit_status'] = line.split("=")[1].strip()
+            elif line.startswith("job_state"):
+                qstat_dict["job_state"]   = line.split("=")[1].strip()    
+        return qstat_dict
+    @property
+    def qstat_status(self):
+        status = self.qstat_dict.get("job_state", None)
+        return self.QsubStatus(status)
+    @property
+    def qstat_exitcode(self):
+        code = self.qstat_dict.get("exit_status", None)
+        return code
 
     def generate_syscall(self, **kwargs):
         raise NotImplementedError
@@ -123,8 +157,10 @@ class Base:
         raise NotImplementedError
     
     def successful(self):
-        success_file = self.outdir / "success"
-        return success_file.exists()
+        if self.qstat_status != self.QsubStatus.COMPLETE:
+            self.log.warning("Job not finished")
+        return self.success_file.exists()
+  
 
     @staticmethod
     def is_success(args):
@@ -138,6 +174,9 @@ class Base:
         return str(float(reads_gb)).replace(".","_")+"GB"
 
     def add_to_que(self, test=False) -> None:
+        self.qsub_args["output"].parent.mkdir(parents=True, exist_ok=True)
+        self.qsub_args["output"].unlink(missing_ok=True)
+        self.qsub_args["error"].unlink(missing_ok=True)
         self.log.debug(f"command:\n{self.syscall}")
         id = submit2(
             command = self.syscall,
@@ -147,4 +186,13 @@ class Base:
         time.sleep(0.5)
         self.log.info(f"Added qsub job: {self.qsub_args['jobname']} / {id}")
         self.job_id = id
+
+    def wait_for_finish(self, wait_time:int=30):
+        if not hasattr(self, "job_id") or self.job_id=="NoID":
+            raise RuntimeError("No job_id -> nothing to wait for")
+        while self.qstat_status != self.QsubStatus.COMPLETE:
+            self.log.debug(f"Waiting for ({self.__class__.__name__}) to complete: ({self.qstat_status})")
+            time.sleep(wait_time)
+        self.log.info(f"Successful:{self.successful()} - Exit-code: {self.qstat_exitcode}")
+
 

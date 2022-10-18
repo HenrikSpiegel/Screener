@@ -49,7 +49,7 @@ def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_0
     # Making a jobscript
     script = '#!/bin/sh\n'
     script += '#PBS -A ' + group + ' -W group_list=' + group + '\n'
-    script += '#PBS -e ' + error + ' -o ' + output + '\n'
+    script += f'#PBS -e {error} -o {output} \n'
     script += '#PBS -d ' + directory + '\n'
     script += '#PBS -l nodes=1:ppn=' + str(cores) + ',mem=' + str(ram) + 'GB' + '\n'
     script += '#PBS -l walltime=' + walltime + '\n'
