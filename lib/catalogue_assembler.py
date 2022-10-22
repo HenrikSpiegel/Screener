@@ -1,11 +1,13 @@
+from functools import partial
 from pathlib import Path
 from re import S
 from Bio import SeqIO
 from Bio.Seq import Seq
 import configparser
 import logging
-from typing import List, Sequence, Union, Set
+from typing import List, Literal, Sequence, Tuple, Union, Set
 from dataclasses import dataclass, field
+
 
 import numpy as np
 
@@ -19,19 +21,47 @@ class BGCData:
 
     kmers:              List[str] = field(default_factory=list, repr=False)
     kmers_unique:       Set[str] = field(default_factory=set, repr=False)
-    kmers_signature:    Set[str] = field(default_factory=set, repr=False)
 
     kmers_cannon:              List[str] = field(default_factory=list, repr=False)
     kmers_unique_cannon:       Set[str] = field(default_factory=set, repr=False)
-    kmers_signature_cannon:    Set[str] = field(default_factory=set, repr=False)
 
 @dataclass
 class BGCSuperCluster:
     name:   str = field(default_factory=str)
     type:   str = field(default_factory=str)
-    members: List[BGCData] = field(default_factory=list)
+    members: List[BGCData] = field(default_factory=list, repr=False)
+    size: int = field(default_factory=int) 
 
-    
+    @property
+    def kmers_within(self) -> dict:
+        if not hasattr(self, "_kmers_within"):
+            shared_kmers = dict()
+            for m in self.members:
+                for k in m.kmers_unique:
+                    if k in shared_kmers:
+                        shared_kmers[k] += 1/self.size
+                    else:
+                        shared_kmers[k] = 1/self.size
+            self._kmers_within = shared_kmers
+        return self._kmers_within
+        
+    kmers_distinct: List = field(default_factory=list, repr=False)
+    def describe_distinct(self):
+        if self.kmers_distinct == []:
+            return None
+        data = np.array(list(self.kmers_distinct.values()))
+        quartiles = np.percentile(data, [25, 50, 75])
+        data_min, data_max = data.min(), data.max()
+        outstr = f"""\
+{self.name} distribution of distinct kmers.
+Min:    {int(data_min*self.size)}/{self.size}
+Q1:     {int(quartiles[0]*self.size)}/{self.size}
+Median: {int(quartiles[1]*self.size)}/{self.size}
+Q3:     {int(quartiles[2]*self.size)}/{self.size}
+Max:    {int(data_max*self.size)}/{self.size}\
+"""
+        return outstr
+
 class CatalogueAssembler:
     def __init__(self):
         project_config = configparser.ConfigParser()
@@ -122,20 +152,6 @@ class CatalogueAssembler:
         self.log.info(f"Loaded ({len(bgcs)}) BGC(s)")
         self.bgcs = bgcs
 
-    @staticmethod
-    def kmerise(seq, k:int=21):
-        if len(seq) < k:
-            raise ValueError(f"k cannot be larger than lenght of sequence -> k={k} > len(seq)={len(seq)}")
-        return [seq[i:i+k] for i in range(len(seq)-k+1)]
-
-    @staticmethod
-    def canonicalize(mer:str) -> str:
-        mer1 = Seq(mer)
-        mer2 = mer1.reverse_complement()
-        if mer1 < mer2:
-            return mer1
-        return mer2
-
     @property
     def bgc_kmers(self) -> List[List[str]]:
         if not all(bgc.kmers for bgc in self.bgcs):
@@ -160,47 +176,114 @@ class CatalogueAssembler:
             self.generate_kmers()
         return [bgc.kmers_unique_cannon for bgc in self.bgcs]
 
+
+    def kmerise(self, seq, k:int=21):
+        if len(seq) < k:
+            raise ValueError(f"k cannot be larger than lenght of sequence -> k={k} > len(seq)={len(seq)}")
+        return [seq[i:i+k] for i in range(len(seq)-k+1)]
+
+    def kmerise_random(self, sequence: str, sample_size:int=1*10**3, k:int=21):
+        all_kmers = self.kmerise(sequence, k)
+        return np.random.choice(all_kmers, sample_size, replace=False)
+
+    def kmerise_spaced(self, sequence:str, k:int=21, spacing:int=10):
+        i = 0
+        max_i = len(sequence)
+        kmers = []
+        while i+k <= max_i:
+            kmers.append(sequence[i:i+k])
+            i += k + spacing
+        return kmers
+
+    def canonicalize(self, mer:str) -> str:
+        mer1 = Seq(mer)
+        mer2 = mer1.reverse_complement()
+        if mer1 < mer2:
+            return mer1
+        return mer2
+
+    def use_kmers_all(self):
+        self._kmer_generator = partial(self.kmerise, k=self.kmerlength)
+
+    def use_kmers_random(self, sample_size=1*10**3):
+        self._kmer_generator = partial(self.kmerise_random, sample_size=sample_size, k=self.kmerlength)
+
+    def use_kmers_spaced(self, spacing=10):
+        self._kmer_generator = partial(self.kmerise_spaced, spacing=spacing, k=self.kmerlength)
+
+    @property
+    def kmer_generator(self):
+        if not hasattr(self, "_kmer_generator"):
+            default_strategy = partial(self.kmerise, k=self.kmerlength)
+            self.log.warning(f"Using default kmer strategy. {default_strategy}")
+            return default_strategy
+        return self._kmer_generator
+
     def generate_kmers(self) -> None:
-        self.log.info("Generating kmers")
+        kmer_generator = self.kmer_generator
+        self.log.info(f"Generating kmers using generator: {kmer_generator}")
+
         for bgc in self.bgcs:
-            bgc.kmers           = self.kmerise(bgc.sequence, k=self.kmerlength)
+            bgc.kmers           = kmer_generator(bgc.sequence)
             bgc.kmers_cannon    = [self.canonicalize(kmer) for kmer in bgc.kmers]
 
             bgc.kmers_unique        = set(bgc.kmers)
             bgc.kmers_unique_cannon = set(bgc.kmers_cannon)
 
-    def generate_poc_signatures(self) -> None:
-        self.log.info("Generating Proof-of-Concept signature")
-        if not all(bgc.kmers for bgc in self.bgcs):
-            self.generate_kmers()
+    @property
+    def superclusters(self) -> List[BGCSuperCluster]:
+        if not hasattr(self, "_superclusters"):
+            msg = "Clusters not assigned - use .apply_superclusters()"
+            self.log.error(msg)
+            raise RuntimeError(msg)
+        return self._superclusters
 
-        for bgc in self.bgcs:
-            self.log.debug(f"Generating signature for {bgc.name}")
+    def apply_superclusters(self, mapping:dict, family_type:str):
+        """
+        arrange bgcs in superclusters based on dict with structure:
+        mapping = {
+            family_name = [members, ...]
+        }
+        family_type = name of family grouping, ie. BiG-SCAPE or other.
+        """
+        superclusters = []
+        for super_name, super_members in mapping.items():
+            SC = BGCSuperCluster(name=super_name, type=family_type)
+            for member in super_members:
+                if isinstance(member, BGCData):
+                    SC.members.append(member)
+                    SC.size += 1
+                else:
+                    #Check if the member is loaded.
+                    loaded = [bgc for bgc in self.bgcs if bgc.name == member]
+                    if len(loaded) == 1:
+                        SC.members.append(loaded[0])
+                        SC.size += 1
+                    else:
+                        self.log.warning(f"{member} in {super_name} not found.")
+            superclusters.append(SC)
+        self._superclusters = superclusters
 
-            kmers_outgroup        = set()
-            kmers_outgroup_cannon = set()
-            for bgc_out in self.bgcs:
-                if bgc_out == bgc:
+    def assign_distinct_sc_kmers(self) -> None:
+        for sc in self.superclusters:
+            outkmers = set()
+            for sc_out in self.superclusters:
+                if sc == sc_out: 
                     continue
-                kmers_outgroup = kmers_outgroup.union(bgc_out.kmers_unique)
-                kmers_outgroup_cannon = kmers_outgroup_cannon.union(bgc_out.kmers_unique_cannon)
-
-            bgc.kmers_signature         = bgc.kmers_unique.difference(kmers_outgroup)
-            bgc.kmers_signature_cannon  = bgc.kmers_unique_cannon.difference(kmers_outgroup_cannon)
-            self.log.debug(f"Number of signature kmers: {len(bgc.kmers_signature)}")
-            self.log.debug(f"Number of signature kmers(cannonical): {len(bgc.kmers_signature_cannon)}")
-
+                outkmers = outkmers.union(set(sc_out.kmers_within.keys()))
+            sc.kmers_distinct = {k:v for k,v in sc.kmers_within.items() if k not in outkmers}
+            self.log.debug("Frequency of distinct_kmers\n"+sc.describe_distinct())
+    
     def print_catalogues(self, directory:Path):
         self.log.info(f"Writing catalogue to: {directory}")
         directory = Path(directory)
-        
 
         if not directory.is_dir():
             self.log.info(f"Catalogue dir does not exist - creating...")
             directory.mkdir(parents=True)
-        for bgc in self.bgcs:
-            catalogue_file = directory / (bgc.name+".catalogue")
-            catalogue_entries = [f">kmer {i}\n{mer}" for i, mer in enumerate(bgc.kmers_signature)]
+        for sc in self.superclusters:
+            catalogue_file = directory / (sc.name+".catalogue")
+            catalogue_entries = [f">kmer {i}\n{mer}" for i, mer in enumerate(sc.kmers_distinct)]
             catalogue_file.write_text("\n".join(catalogue_entries))
 
 
