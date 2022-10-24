@@ -21,6 +21,7 @@ class Preprocessor(Base):
             reads_interleaved = [reads_interleaved]
         self.reads_files = [Path(x) for x in reads_interleaved]
         self.outdir = Path(outdir)
+        self.success_file = self.outdir/'success'
 
         #Here we assume that the grandparent is sample_id ie sample_0/reads/readsfile however we should perhaps redo
         self.fp_outs_interleaved = [self.outdir / infile.parent.parent.name / Path("trimmed."+infile.name) for infile in self.reads_files]
@@ -49,14 +50,11 @@ class Preprocessor(Base):
         calls = [f"sickle pe --gzip-output -l 100 --pe-combo {infile} -t sanger -m {out_inter} -s {out_single}" for infile, out_inter, out_single in zip(self.reads_files, self.fp_outs_interleaved, self.fp_outs_singles)]
         syscall = "\n".join(calls)
         syscall += f"""
-touch {self.outdir / "success"}
-        """
+touch {self.success_file}
+"""
         self._syscall = syscall
         return
-    
-    def successful(self):
-        success_file = self.outdir / "success"
-        return success_file.exists()
+
 
 
 if __name__ == "__main__":

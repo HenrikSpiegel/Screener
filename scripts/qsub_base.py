@@ -8,7 +8,7 @@ import configparser
 from enum import Enum
 
 project_config = configparser.ConfigParser()
-project_config.read("config/project_config.ini")
+project_config.read("../config/project_config.ini")
 
 class QsubStatus(Enum):
     UNKNOWN = None
@@ -68,14 +68,7 @@ class Base:
         return self._log
     
     def add_external_log(self, log: logging.Logger):
-        self.log.addHandler(log.handlers[1])
-        # self.log.debug()
-        # self.
-        # for handler in log.handlers:
-        #     if isinstance(handler, logging.StreamHandler):
-        #         continue
-        #     self.log.debug(f"Adding -> {handler}")
-        #     self._log.addHandler(handler)
+        self.log.handlers = log.handlers
 
   
     @property
@@ -157,9 +150,12 @@ class Base:
         raise NotImplementedError
     
     def successful(self):
-        if self.qstat_status != self.QsubStatus.COMPLETE:
-            self.log.warning("Job not finished")
-        return self.success_file.exists()
+        if hasattr(self, "success_file"):
+            self.log.debug(self.success_file.exists())
+            return self.success_file.exists()
+        else:
+            self.log.warning(f"{self.__class__.__name__} doesn't have a sucess_file set.")
+            return False
   
 
     @staticmethod

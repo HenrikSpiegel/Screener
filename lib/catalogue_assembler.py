@@ -28,7 +28,7 @@ class BGCData:
 @dataclass
 class BGCSuperCluster:
     name:   str = field(default_factory=str)
-    type:   str = field(default_factory=str)
+    cluster_type:   str = field(default_factory=str)
     members: List[BGCData] = field(default_factory=list, repr=False)
     size: int = field(default_factory=int) 
 
