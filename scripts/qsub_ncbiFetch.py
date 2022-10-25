@@ -2,6 +2,7 @@ import os
 import pathlib
 import logging
 from typing import List
+from pathlib import Path
 
 from scripts.qsub_base import Base
 
@@ -11,7 +12,8 @@ class NCBIFetch(Base):
             self.add_external_log(log)
 
         self.ids = id_list
-        self.outdir = outdir
+        self.outdir = Path(outdir)
+        self.success_file = Path(outdir)/'success'
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2020.07",
@@ -20,7 +22,7 @@ class NCBIFetch(Base):
         ram = 10
         )
 
-    def preflight(self) -> None:
+    def preflight(self, check_input=True) -> None:
         pathlib.Path(self.outdir).mkdir(parents=True, exist_ok=True)
 
     def generate_syscall(self) -> None:
@@ -29,9 +31,8 @@ class NCBIFetch(Base):
 python {"scripts/ncbi_fetch.py"} \
 --ncbi_ids {" ".join(self.ids)} \
 --outdir {self.outdir}\
+
+touch {self.success_file}
 """
         self._syscall=syscall
 
-    @staticmethod
-    def is_success(output_dir) -> str:
-        raise NotImplementedError

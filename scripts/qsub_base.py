@@ -8,7 +8,7 @@ import configparser
 from enum import Enum
 
 project_config = configparser.ConfigParser()
-project_config.read("../config/project_config.ini")
+project_config.read("config/project_config.ini")
 
 class QsubStatus(Enum):
     UNKNOWN = None
@@ -146,22 +146,28 @@ class Base:
     def preflight(self, **kwargs) -> None:
         raise NotImplementedError
         
-    def output_exist(self, **kwargs) -> bool:
-        raise NotImplementedError
+    @property
+    def is_running(self):
+        return self.qstat_status == QsubStatus.RUNNING
+
+    @property
+    def is_queing(self):
+        return self.qstat_status == QsubStatus.QUEING
+
+    @property
+    def is_complete(self):
+        return self.qstat_status == QsubStatus.COMPLETE 
     
-    def successful(self):
+    @property
+    def is_successful(self):
         if hasattr(self, "success_file"):
+            self.log.debug(self.success_file)
             self.log.debug(self.success_file.exists())
             return self.success_file.exists()
         else:
-            self.log.warning(f"{self.__class__.__name__} doesn't have a sucess_file set.")
+            self.log.warning(f"{self.__class__.__name__} doesn't have a success_file set.")
             return False
   
-
-    @staticmethod
-    def is_success(args):
-        raise NotImplementedError
-
     @staticmethod
     def gen_prefix(reads_gb:float) -> str:
         # returns stringified float with GB suffix

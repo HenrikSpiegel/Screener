@@ -11,12 +11,9 @@ class Antismash(Base):
         if log:
             self.add_external_log(log)
 
-        if not isinstance(fastafile, Path):
-            fastafile = Path(fastafile)
-        self.fatafile = fastafile
-        if not isinstance(outdir, Path):
-            outdir = Path(outdir)
-        self.outdir = outdir
+        self.fastafile = Path(fastafile)
+        self.outdir = Path(outdir)
+        self.success_file = self.outdir/"success"
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.11 antismash/6.1.1",
@@ -40,11 +37,11 @@ antismash --output-dir {self.outdir} \
 --taxon bacteria \
 --cpus {self.qsub_requirements["cores"]-1} \
 --genefinding-tool prodigal \
-{self.fatafile}
+{self.fastafile}
 #Pulls the output bgcs into 1 file.
 python -m scripts.antismash_as_fasta -i {self.outdir}
 
-touch {self.outdir / "success"}
+touch {self.success_file}
 """
         self._syscall=syscall
 

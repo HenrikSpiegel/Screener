@@ -34,6 +34,8 @@ class Camisim(Base):
 
         self.dir_datalabel  = self.outdir / self.datalabel
         self.fp_config      = self.outdir / 'configs' / f"{self.datalabel}_config.ini"
+
+        self.success_file = self.dir_datalabel / "success"
         
 
     qsub_requirements = dict(
@@ -238,7 +240,7 @@ done
 
 python scripts/camisim_describe_run.py -d {self.dir_datalabel}
 
-touch {os.path.join(self.dir_datalabel, "success")}
+touch {self.success_file}
 """    
         self._syscall = syscall
         return
