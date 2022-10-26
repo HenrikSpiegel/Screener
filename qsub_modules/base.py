@@ -179,6 +179,9 @@ class Base:
         self.qsub_args["output"].parent.mkdir(parents=True, exist_ok=True)
         self.qsub_args["output"].unlink(missing_ok=True)
         self.qsub_args["error"].unlink(missing_ok=True)
+
+        self.success_file.unlink(missing_ok=True)
+
         self.log.debug(f"command:\n{self.syscall}")
         id = submit2(
             command = self.syscall,

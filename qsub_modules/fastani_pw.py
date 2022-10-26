@@ -6,12 +6,12 @@ from Bio import SeqIO
 from typing import Union, List
 from pathlib import Path
 
-class PairwiseBlast(Base):
-    def __init__(self, fasta_file: Path, output_dir: Path, make_database:bool=True):
+class PairwiseFastANI(Base):
+    def __init__(self, fasta_file: Path, output_dir: Path):
         self.fasta_file = Path(fasta_file)
 
         self.output_dir = Path(output_dir)
-        self.output_combined = Path(output_dir)/"combined_blast_results.tsv"
+        self.output_combined = Path(output_dir)/"c.tsv"
 
         self.success_file = self.output_dir/'success'
 
@@ -22,7 +22,7 @@ class PairwiseBlast(Base):
         self.output_columns = "qaccver saccver qstart qend sstart send pident length qcovs qcovhsp mismatch evalue bitscore"
 
     qsub_requirements = dict(
-        modules = "tools anaconda3/2021.05 perl/5.30.2 ncbi-blast/2.12.0+",
+        modules = "tools snakemake/7.14.0 fastani/1.33", #Not that snakemake and not python is required as some c++ libraries are silently needed.
         runtime = 120,
         cores = 30,
         ram=100,

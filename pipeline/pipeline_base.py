@@ -275,7 +275,7 @@ is_successful: {job_cls.is_successful}
         except Exception as err:
             raise RuntimeError(f"Qsub jobid return: {cls.job_id}")
 
-    def start(self):
+    def run_pipeline(self):
         pipeline_start = time.time()
 
         self.log.info("Started pipeline run.")
@@ -308,6 +308,8 @@ is_successful: {job_cls.is_successful}
                     self.jobs_running.add(job_to_start)
 
 
+            if self.pipeline_is_finished:
+                break
 
             if (time.time() - last_status_time) > status_time_delta:
                 last_status_time = time.time()
@@ -315,7 +317,8 @@ is_successful: {job_cls.is_successful}
             time.sleep(self.iteration_sleep)
         
         runtime = time.time() - pipeline_start
-        self.log.info(f"Pipeline terminated sucessfully - runtime: {humanize.naturaldelta(runtime)}")
+        self.log.info(f"Pipeline terminated - runtime: {humanize.naturaldelta(runtime)}")
+        self.log.info(f"Final status:\n{self.status}")
         
       
             

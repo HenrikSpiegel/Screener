@@ -33,14 +33,11 @@ def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_0
     if not isinstance(dependency, list):
         dependency = [dependency]
     if cores > 38:
-        print("Can't use more than 38 cores on a node")
-        sys.exit(1)
+        raise RuntimeError("Can't use more than 38 cores on a node")
     if ram > 188:
-        print("Can't use more than 120 GB on a node")
-        sys.exit(1)
+        raise RuntimeError("Can't use more than 120 GB on a node")
     if runtime < 1:
-        print("Must allocate at least 1 minute runtime")
-        sys.exit(1)
+        raise RuntimeError("Must allocate at least 1 minute runtime")
     minutes = runtime % 60
     hours = int(runtime/60)
     walltime = "{:d}:{:02d}:00".format(hours, minutes)
@@ -67,7 +64,7 @@ def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_0
     script += command + '\n'
     # The submit
     if test:
-        print(script)
+        print(script, file=sys.stdout)
         return("NoID")
     else:
         job = subprocess.run(['qsub'], input=script, stdout=subprocess.PIPE, universal_newlines=True)

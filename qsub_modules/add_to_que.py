@@ -10,14 +10,14 @@ project_config.read("config/project_config.ini")
 
 
 class AddToQue(Base):
-    def __init__(self, command:str, success_file:str, name:str=None):
+    def __init__(self, command:str, success_file:Path, name:str=None):
         self.command = command
         self.name = name or "AddToQue"
         self.jobtag = name
 
-        self.success_file = success_file
+        self.success_file = Path(success_file)
 
-    default_args = dict(
+    qsub_requirements = dict(
         modules = "tools anaconda3/2021.11",
         runtime = 60,
         cores = 10,

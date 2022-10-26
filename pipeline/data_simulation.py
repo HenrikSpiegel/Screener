@@ -2,6 +2,8 @@ from qsub_modules.ncbiFetch import NCBIFetch
 from qsub_modules.antismash import Antismash
 from qsub_modules.camisim import Camisim
 from qsub_modules.preprocess import Preprocessor
+from qsub_modules.blastn_pw import PairwiseBlast
+from qsub_modules.add_to_que import AddToQue
 
 from pipeline.pipeline_base import PipelineBase
 
@@ -89,7 +91,30 @@ job_id_map.update(
         outdir = outdir)
      for label, input_files, outdir in zip(preprocess_labels, input_file_sets, output_directories)
     }
-)    
+)
+
+
+## Analysis part
+# add pairwise blast of bgcs.
+dependencies.append(
+    ('antismash', 'blast_pw')
+)
+job_id_map['blast_pw'] = PairwiseBlast(
+    fasta_file = "data/simulated_data/antismash/input_genomes/combined_bgc.fa",
+    output_dir= Path('data/simulated_data/blast_pairwise/input_bgc'),
+    make_database = True
+)
+
+# add pw analysis of bgc
+dependencies.append(
+    ('blast_pw', '01_analysis')
+)
+job_id_map['01_analysis'] = AddToQue(
+    command='python analysis/01_compare_input_bgc.py',
+    success_file='results/01_compare_input_bgc/success',
+    name='01_analysis',
+)
+
 
 pipeline_simulate = PipelineBase(
     pipe_name="SimulateData",
@@ -100,5 +125,5 @@ pipeline_simulate = PipelineBase(
 )
 
 if __name__ == "__main__":
-    pipeline_simulate.start()
+    pipeline_simulate.run_pipeline()
 
