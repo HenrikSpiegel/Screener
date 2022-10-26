@@ -1,5 +1,5 @@
 import shutil
-from scripts.qsub_base import Base
+from qsub_modules.qsub_base import Base
 
 import logging
 import os, sys, time

@@ -4,7 +4,7 @@ import os, sys
 import pathlib
 from typing import List, Union
 
-from scripts.functions import submit2
+from qsub_modules.functions import submit2
 
 def gen_qsub_args(working_dir:str=None, job_tag:str="", **kwargs):
     if working_dir is None:

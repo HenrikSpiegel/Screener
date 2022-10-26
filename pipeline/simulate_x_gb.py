@@ -8,14 +8,14 @@ import pathlib
 
 from pipeline.general_functions import submit2
 
-import scripts.qsub_camisim as camisim
-import scripts.qsub_ncbiFetch as ncbifetch
-import scripts.qsub_antismash as antismash
-from scripts.qsub_base import Base
-from scripts.qsub_assemble import Assembler
-from scripts.qsub_mapquantifier import QuantifierMap
-from scripts.qsub_kmerquantifier import QuantifierKmer
-from scripts.qsub_preprocess import Preprocessor
+import qsub_modules.qsub_camisim as camisim
+import qsub_modules.qsub_ncbiFetch as ncbifetch
+import qsub_modules.qsub_antismash as antismash
+from qsub_modules.qsub_base import Base
+from qsub_modules.qsub_assemble import Assembler
+from qsub_modules.qsub_mapquantifier import QuantifierMap
+from qsub_modules.qsub_kmerquantifier import QuantifierKmer
+from qsub_modules.qsub_preprocess import Preprocessor
 
 api_base = Base()
 

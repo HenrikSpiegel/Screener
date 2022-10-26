@@ -6,8 +6,8 @@ import re
 import sys
 from typing import List
 
-from scripts.functions import submit2
-from scripts.qsub_base import Base
+from qsub_modules.functions import submit2
+from qsub_modules.qsub_base import Base
 
 class FastQC(Base):
     def __init__(self, reads:str, output_dir: str,log: logging.Logger=None) -> None:

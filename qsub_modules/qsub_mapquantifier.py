@@ -7,8 +7,8 @@ import re
 import sys
 from typing import List, Union
 
-from scripts.functions import submit2
-from scripts.qsub_base import Base
+from qsub_modules.functions import submit2
+from qsub_modules.qsub_base import Base
 
 class QuantifierMap(Base):
     def __init__(self, reads:Union[str, List[str]], reference:str, output_dir: str, minMapQ: int=30, minBaseQ:int=20, log: logging.Logger=None) -> None:

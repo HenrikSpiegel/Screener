@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from scripts.kmer_gen_catalogue import canonicalize
+from qsub_modules.kmer_gen_catalogue import canonicalize
 
 @dataclass
 class BGCData:

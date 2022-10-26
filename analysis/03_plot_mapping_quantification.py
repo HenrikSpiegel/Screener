@@ -6,7 +6,7 @@ from typing import List
 import numpy as np
 import plotly.express as px
 
-from scripts.qsub_base import Base
+from qsub_modules.qsub_base import Base
 
 def gather_reference_quantification(
         quantification_dir: str="data/simulated_data/quantification_map/", 

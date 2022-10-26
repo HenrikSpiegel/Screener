@@ -3,7 +3,7 @@ import logging
 import os, sys
 from pathlib import Path
 import time
-from scripts.functions import submit2
+from qsub_modules.functions import submit2
 import configparser
 from enum import Enum
 

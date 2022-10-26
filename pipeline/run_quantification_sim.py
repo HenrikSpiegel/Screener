@@ -8,8 +8,8 @@ import json
 #Will run the analysis pipeline for the simulated data
 
 from pipeline.general_functions import get_log, raise_w_log
-from scripts.qsub_kmerquantifier import QuantifierKmer
-from scripts.qsub_mapquantifier import QuantifierMap
+from qsub_modules.qsub_kmerquantifier import QuantifierKmer
+from qsub_modules.qsub_mapquantifier import QuantifierMap
 
 if __name__ == "__main__":
     desc = """\
