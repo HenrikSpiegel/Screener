@@ -4,7 +4,7 @@ import logging
 from typing import List
 from pathlib import Path
 
-from qsub_modules.qsub_base import Base
+from qsub_modules.base import Base
 
 class NCBIFetch(Base):
     def __init__(self, id_list:List[str], outdir: str,log: logging.Logger=None) -> None:

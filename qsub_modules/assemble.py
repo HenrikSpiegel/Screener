@@ -7,7 +7,7 @@ import sys
 from typing import List
 
 from qsub_modules.functions import submit2
-from qsub_modules.qsub_base import Base
+from qsub_modules.base import Base
 
 class Assembler(Base):
     def __init__(self, reads_interleaved: str, output_dir: str="data/simulated_data/assembly/default", log: logging.Logger=None) -> None:

@@ -1,6 +1,6 @@
 
 import time
-from qsub_modules.qsub_base import Base, QsubStatus
+from qsub_modules.base import Base, QsubStatus
 from Bio import SeqIO
 from typing import Union, List
 from pathlib import Path

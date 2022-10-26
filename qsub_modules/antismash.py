@@ -4,7 +4,7 @@ import logging
 from typing import Union
 from pathlib import Path
 
-from qsub_modules.qsub_base import Base
+from qsub_modules.base import Base
 
 class Antismash(Base):
     def __init__(self, fastafile: Union[str,Path], outdir: Union[str,Path],log: logging.Logger=None) -> None:
