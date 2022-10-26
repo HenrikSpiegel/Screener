@@ -1,7 +1,7 @@
-from qsub_modules.qsub_ncbiFetch import NCBIFetch
-from qsub_modules.qsub_antismash import Antismash
-from qsub_modules.qsub_camisim import Camisim
-from qsub_modules.qsub_preprocess import Preprocessor
+from qsub_modules.ncbiFetch import NCBIFetch
+from qsub_modules.antismash import Antismash
+from qsub_modules.camisim import Camisim
+from qsub_modules.preprocess import Preprocessor
 
 from pipeline.pipeline_base import PipelineBase
 

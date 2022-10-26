@@ -8,7 +8,7 @@ import os
 import humanize
 
 import numpy as np
-from qsub_modules.qsub_base import Base as QBase
+from qsub_modules.base import Base as QBase
 
 project_config = configparser.ConfigParser()
 config_path = Path('config/project_config.ini')

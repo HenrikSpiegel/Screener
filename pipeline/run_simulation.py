@@ -10,7 +10,7 @@ from pipeline.general_functions import get_log, raise_w_log
 from qsub_modules.qsub_camisim import Camisim
 from qsub_modules.qsub_preprocess import Preprocessor
 from qsub_modules.qsub_ncbiFetch import NCBIFetch
-from qsub_modules.qsub_antismash import Antismash
+from qsub_modules.antismash import Antismash
 
 if __name__ == "__main__":
     desc = """\
