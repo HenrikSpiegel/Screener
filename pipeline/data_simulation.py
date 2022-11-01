@@ -114,14 +114,14 @@ job_id_map['01_analysis'] = AddToQue(
     name='01_analysis',
 )
 
-# add pw analysis of partial copsag set.
-dependencies.append(
-    ('blast_pw_copsag',)
-)
-job_id_map["blast_pw_copsag"] = PairwiseBlast(
-    fasta_file="/home/projects/dtu_00009/people/henspi/copsac_bgc.fa",
-    output_dir="data/simulated_data/blast_pairwise/copsag"
-)
+# # add pw analysis of partial copsag set.
+# dependencies.append(
+#     ('blast_pw_copsag',)
+# )
+# job_id_map["blast_pw_copsag"] = PairwiseBlast(
+#     fasta_file="/home/projects/dtu_00009/people/henspi/copsac_bgc.fa",
+#     output_dir="data/simulated_data/blast_pairwise/copsag"
+# )
 
 pipeline_simulate = PipelineBase(
     pipe_name="SimulateData",
@@ -132,5 +132,6 @@ pipeline_simulate = PipelineBase(
 )
 
 if __name__ == "__main__":
-    pipeline_simulate.run_pipeline()
+    print(pipeline_simulate.jobs_total)
+    #pipeline_simulate.run_pipeline()
     pass

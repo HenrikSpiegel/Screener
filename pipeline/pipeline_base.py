@@ -7,6 +7,8 @@ from pathlib import Path
 import os
 import humanize
 
+import graphviz
+
 import numpy as np
 from qsub_modules.base import Base as QBase
 
@@ -52,7 +54,9 @@ class PipelineBase:
         self.add_logging_from_jobs()
 
         self._initial_check()
+        
         self.log.info(f"Initial status:\n{self.status}")
+        self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')
 
     def add_logging_from_jobs(self):
         """
@@ -89,6 +93,28 @@ jobs_failed: ({len(self.jobs_failed)})
 {self.jobs_failed}
 """
         return status_str
+
+    def generate_graphviz(self, file:Path):    
+        dot = graphviz.Digraph(comment=self.pipe_name)
+        for job_id in self.jobs_total:
+            if job_id in self.jobs_holding:
+                color="white"
+            elif job_id in self.jobs_queing or self.jobs_running:
+                color="blue"
+            elif job_id in self.jobs_complete:
+                color="green"
+            elif job_id in self.jobs_failed:
+                color="red"
+            else:
+                color="grey"
+            dot.node(job_id, job_id, style='filled',fillcolor=color) 
+
+        for child, parents in self.dependency_dict.items():
+            for parent in parents:
+                dot.edge(parent, child)
+
+        dot.render(file)
+        self.log.info(f"Dependency graph written -> {file}")
 
     @property
     def log_setup(self):
@@ -145,10 +171,12 @@ jobs_failed: ({len(self.jobs_failed)})
                     dependency_dict[child].update(parents)
                 else:
                     dependency_dict[child] = parents
-        self.jobs_holding = all_jobs
+        self.jobs_holding = all_jobs.copy()
+        self.jobs_total   = all_jobs.copy()
         self.dependency_dict = dependency_dict
         self.log.info(f"Found ({len(all_jobs)}) jobs to run.")
         self.log.debug(str(all_jobs))
+
 
     def job_has_upstream_dependencies(self, job):
         self.log.debug(f"Checking upstream dependencies for {job}")
@@ -252,8 +280,8 @@ is_successful: {job_cls.is_successful}
 
     @property
     def progress(self):
-        return np.round((len(self.jobs_finalized) / len(self.jobs_to_finalize ^ self.jobs_finalized))*100,0)
-
+        return f"{len(self.jobs_finalized)}/{len(self.jobs_to_finalize ^ self.jobs_finalized)}"
+        
     @property
     def pipeline_is_finished(self):
         return self.jobs_to_finalize == set()
@@ -283,7 +311,7 @@ is_successful: {job_cls.is_successful}
         pipeline_start = time.time()
 
         self.log.info("Started pipeline run.")
-        self.log.info(f"Intial progress {self.progress}%")
+        self.log.info(f"Intial progress {self.progress} jobs")
 
         status_time_delta = 2*60
         last_status_time = time.time()
@@ -317,19 +345,10 @@ is_successful: {job_cls.is_successful}
 
             if (time.time() - last_status_time) > status_time_delta:
                 last_status_time = time.time()
-                self.log.info(f"Progress: {self.progress}\n{self.status}")
+                self.log.info(f"Progress: {self.progress}\n{self.status} jobs")
+                self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')
             time.sleep(self.iteration_sleep)
         
         runtime = time.time() - pipeline_start
         self.log.info(f"Pipeline terminated - runtime: {humanize.naturaldelta(runtime)}")
         self.log.info(f"Final status:\n{self.status}")
-        
-      
-            
-
-
-
-
-    
-    
-    
