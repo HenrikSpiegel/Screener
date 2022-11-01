@@ -134,6 +134,9 @@ jobs_failed: ({len(self.jobs_failed)})
         all_jobs = set()
         dependency_dict = {}
         for dep in self.dependencies:
+            if len(dep) == 1: # use this approach ("jobname", ) to add jobs without prior dependencies
+                all_jobs.add(dep[0])
+                continue
             parents = dep[0] if isinstance(dep[0], set) else {dep[0]}
             children = dep[1] if isinstance(dep[1], set) else {dep[1]}
             all_jobs.update(parents ^ children)
@@ -220,6 +223,7 @@ jobs_failed: ({len(self.jobs_failed)})
                 continue
 
             if job_cls.is_complete:
+                time.sleep(2) #It appears we sometimes miss the successfile - perhaps a slight desync issue.
                 if job_cls.is_successful:
                     self.log.info(f"{job} has succesfully completed")
                     self.jobs_running.remove(job)

@@ -101,8 +101,7 @@ dependencies.append(
 )
 job_id_map['blast_pw'] = PairwiseBlast(
     fasta_file = "data/simulated_data/antismash/input_genomes/combined_bgc.fa",
-    output_dir= Path('data/simulated_data/blast_pairwise/input_bgc'),
-    make_database = True
+    output_dir= Path('data/simulated_data/blast_pairwise/input_bgc')
 )
 
 # add pw analysis of bgc
@@ -115,15 +114,23 @@ job_id_map['01_analysis'] = AddToQue(
     name='01_analysis',
 )
 
+# add pw analysis of partial copsag set.
+dependencies.append(
+    ('blast_pw_copsag',)
+)
+job_id_map["blast_pw_copsag"] = PairwiseBlast(
+    fasta_file="/home/projects/dtu_00009/people/henspi/copsac_bgc.fa",
+    output_dir="data/simulated_data/blast_pairwise/copsag"
+)
 
 pipeline_simulate = PipelineBase(
     pipe_name="SimulateData",
     dependencies = dependencies,
     job_map = job_id_map,
-    iteration_sleep=10,
+    iteration_sleep=30,
     testing=False
 )
 
 if __name__ == "__main__":
     pipeline_simulate.run_pipeline()
-
+    pass

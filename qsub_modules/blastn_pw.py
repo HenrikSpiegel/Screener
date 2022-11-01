@@ -7,7 +7,7 @@ from typing import Union, List
 from pathlib import Path
 
 class PairwiseBlast(Base):
-    def __init__(self, fasta_file: Path, output_dir: Path, make_database:bool=True):
+    def __init__(self, fasta_file: Path, output_dir: Path, ):
         self.fasta_file = Path(fasta_file)
 
         self.output_dir = Path(output_dir)
@@ -15,9 +15,6 @@ class PairwiseBlast(Base):
 
         self.success_file = self.output_dir/'success'
 
-        if not make_database:
-            self.log.warning("Running the pairwise as query=file, subject=file which is slow for larger comparisons.")
-        self.make_database = make_database
         self.database_path  = self.output_dir / "blastDB" / self.fasta_file.stem
         self.output_columns = "qaccver saccver qstart qend sstart send pident length qcovs qcovhsp mismatch evalue bitscore"
 
@@ -36,32 +33,28 @@ class PairwiseBlast(Base):
         self.output_combined.write_text(self.output_columns.replace(" ", "\t")+"\n")
 
         #prepare for db:
-        if self.make_database:
-            if self.database_path.parent.is_dir():
-                self.log.info("Removing old DB")
-                shutil.rmtree(self.database_path.parent)
-            self.database_path.parent.mkdir(parents=True)
+        if self.database_path.parent.is_dir():
+            self.log.info("Removing old DB")
+            shutil.rmtree(self.database_path.parent)
+        self.database_path.parent.mkdir(parents=True)
 
         if check_input:
             assert(self.fasta_file.exists())
 
     def generate_syscall(self):
         
-        if self.make_database:
-            call = f"""\
-makeblastdb -in {self.fasta_file} -parse_seqids -blastdb_version 5 -title "Database" -dbtype nucl -out {self.database_path}
+        self._syscall = f"""\
+main () {{
+    makeblastdb -in {self.fasta_file} -parse_seqids -blastdb_version 5 -title "Database" -dbtype nucl -out {self.database_path}
 
-blastn -query {self.fasta_file} -db {self.database_path} -task dc-megablast -outfmt "6 {self.output_columns}" -num_threads {self.qsub_args["cores"]-1} >> {self.output_combined}
+    blastn -query {self.fasta_file} -db {self.database_path} -task dc-megablast -outfmt "6 {self.output_columns}" -num_threads {self.qsub_args["cores"]-1} -subject_besthit >> {self.output_combined}
 
-touch {self.success_file}
+    python scripts/symmetrise_blastn.py --blast {self.output_combined} --fasta {self.fasta_file}
+
+    touch {self.success_file}
+}}
+time main
 """
-        else:
-            call = f"""\
-blastn -query {self.fasta_file} -subject {self.fasta_file} -task dc-megablast -outfmt "6 {self.output_columns}" -num_threads {self.qsub_args["cores"]-1} >> {self.output_combined}
-touch {self.success_file}
-"""
-
-        self._syscall=call
 
 if __name__ == "__main__":
     

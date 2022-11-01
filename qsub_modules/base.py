@@ -68,7 +68,7 @@ class Base:
         return self._log
     
     def add_external_log(self, log: logging.Logger):
-        self.log.handlers = log.handlers
+        self._log = log.getChild(self.log_setup["name"])
 
   
     @property
