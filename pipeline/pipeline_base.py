@@ -1,6 +1,7 @@
 import configparser
 from enum import Enum
 import logging
+import re
 import time
 from typing import List, Tuple, Union, Dict
 from pathlib import Path
@@ -31,6 +32,8 @@ class PipelineBase:
     jobs_running    = set()
     jobs_complete   = set()
     jobs_failed     = set()
+
+    progress_updated = False
 
     def __init__(self, 
         dependencies: List[Tuple[Union[str, List[str]], Union[str, List[str]]]],
@@ -94,27 +97,75 @@ jobs_failed: ({len(self.jobs_failed)})
 """
         return status_str
 
-    def generate_graphviz(self, file:Path):    
-        dot = graphviz.Digraph(comment=self.pipe_name)
-        for job_id in self.jobs_total:
+    def _color_node(self, job_id):
             if job_id in self.jobs_holding:
-                color="white"
-            elif job_id in self.jobs_queing or self.jobs_running:
-                color="blue"
+                color="cornsilk"
+            elif job_id in self.jobs_queing:
+                color="deepskyblue"
+            elif job_id in self.jobs_running:
+                color="dodgerblue3"
             elif job_id in self.jobs_complete:
-                color="green"
+                color="darkolivegreen4"
             elif job_id in self.jobs_failed:
                 color="red"
             else:
                 color="grey"
-            dot.node(job_id, job_id, style='filled',fillcolor=color) 
+            return color
+
+    def generate_graphviz(self, file:Path):    
+        
+            
+        sample_regex = re.compile(r"\.\d$")
+        dict_belong = dict()
+        dict_clusters = dict()
+        for job in self.jobs_total:
+            cleaned_name = sample_regex.sub("", job)
+            
+            if cleaned_name != job:
+                dict_belong[job] = "cluster_"+cleaned_name
+                if cleaned_name in dict_clusters:
+                    dict_clusters[cleaned_name].append(job)
+                else:
+                    dict_clusters[cleaned_name] = [job]
+            else:
+                dict_belong[job] = cleaned_name
+
+        dot = graphviz.Digraph(comment=self.pipe_name, node_attr={'shape':'box', 'style': 'rounded,filled'})
+        dot.attr(rankdir="LR")
+        dot.attr("node", style='filled')
+        clustered_nodes = set()
+        for name, members in dict_clusters.items():
+            clustered_nodes.update(members)
+            with dot.subgraph(name="cluster_"+name) as c:
+                c.attr(rankdir="TB")
+                c.attr(shape='box', style= 'rounded,filled', color='#82d2f0', label=name)
+                for i in range(len(members)-1):
+                    sort_mem = sorted(members)
+                    c.node(members[i], color=self._color_node(members[i]))
+                    c.edge(sort_mem[i], sort_mem[i+1], style="invis")
+                c.node(members[-1], color=self._color_node(members[-1]))
+
+        for job_id in self.jobs_total - clustered_nodes:
+            dot.node(job_id, color=self._color_node(job_id))
 
         for child, parents in self.dependency_dict.items():
+            if dict_belong[child].startswith('cluster_'):
+                if not child.endswith(".0"):
+                    continue
+                head = dict_belong[child]
+            else:
+                head = None
             for parent in parents:
-                dot.edge(parent, child)
+                if dict_belong[parent].startswith('cluster_'):
+                    if not child.endswith(".0"):
+                        continue
+                    tail = dict_belong[parent]
+                else:
+                    tail = None
+                dot.edge(parent, child, ltail=tail, lhead=head)
 
         dot.render(file)
-        self.log.info(f"Dependency graph written -> {file}")
+        self.log.info(f"Dependency graph written -> {file}.pdf")
 
     @property
     def log_setup(self):
@@ -197,9 +248,17 @@ jobs_failed: ({len(self.jobs_failed)})
                 has_upstream = True
             elif upstream_job in self.jobs_running:
                 self.log.debug(f"--Running upstream: {upstream_job}")
-                has_upstream = True
-            
+                has_upstream = True           
         return has_upstream
+
+    def job_has_upstream_failures(self, job):
+        upstream_jobs = self.dependency_dict.get(job, {})
+        if not upstream_jobs:
+            return False
+        for upstream_job in upstream_jobs:
+            if upstream_job in self.jobs_failed:
+                return True
+        return False
 
     def move_to_que(self, ids:set):
         if isinstance(ids, str): 
@@ -221,16 +280,24 @@ jobs_failed: ({len(self.jobs_failed)})
     
     def find_ready_jobs(self):
         ready_jobs = set()
-        for job_id in self.jobs_holding:
+        jobs_holding_iter = self.jobs_holding.copy()
+        for job_id in jobs_holding_iter:
             # Check if has dependencies:
+            if self.job_has_upstream_failures(job_id):
+                self.progress_updated = True
+                self.log.warning(f"{job_id} has upstream failures -> moving to jobs_failed")
+                self.jobs_holding.remove(job_id)
+                self.jobs_failed.add(job_id)
+                continue
+
             if self.job_has_upstream_dependencies(job_id):
                 continue
+
             self.log.debug(f"{job_id}: No upstream dependencies.")
-            ready_jobs.add(job_id)
-        if ready_jobs:
-            self.log.info(f"Added ({len(ready_jobs)}) jobs to que")
             self.log.debug(f"Adding jobs to que -> {ready_jobs}")
-            self.move_to_que(ready_jobs)
+            self.jobs_holding.remove(job_id)
+            self.jobs_queing.add(job_id)
+            self.progress_updated = True
 
     def check_running_jobs(self):
         if not self.jobs_running:
@@ -242,6 +309,7 @@ jobs_failed: ({len(self.jobs_failed)})
             job_cls = self.job_map[job]
             self.log.debug(f"cls")
             if not hasattr(job_cls, "job_id") or job_cls.job_id=="NoID":
+                self.progress_updated = True
                 self.log.error("Job without ID -> must have failed somehow. Moving to failed.")
                 self.jobs_failed.add(job)
                 self.jobs_running.remove(job)
@@ -251,6 +319,7 @@ jobs_failed: ({len(self.jobs_failed)})
                 continue
 
             if job_cls.is_complete:
+                self.progress_updated = True
                 time.sleep(2) #It appears we sometimes miss the successfile - perhaps a slight desync issue.
                 if job_cls.is_successful:
                     self.log.info(f"{job} has succesfully completed")
@@ -260,6 +329,7 @@ jobs_failed: ({len(self.jobs_failed)})
                     self.log.error(f"{job} has failed")
                     self.jobs_running.remove(job)
                     self.jobs_failed.add(job)
+                
                 continue
             self.log.error(f"""\
 {job} -> {job_cls}:
@@ -306,6 +376,7 @@ is_successful: {job_cls.is_successful}
             int(cls.job_id)
         except Exception as err:
             raise RuntimeError(f"Qsub jobid return: {cls.job_id}")
+        self.progress_updated = True
 
     def run_pipeline(self):
         pipeline_start = time.time()
@@ -339,16 +410,20 @@ is_successful: {job_cls.is_successful}
                 else:
                     self.jobs_running.add(job_to_start)
 
-
+            if self.progress_updated = True
+                self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')
+                self.progress_updated = False
+                
             if self.pipeline_is_finished:
                 break
 
             if (time.time() - last_status_time) > status_time_delta:
                 last_status_time = time.time()
                 self.log.info(f"Progress: {self.progress}\n{self.status} jobs")
-                self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')
+                
             time.sleep(self.iteration_sleep)
         
         runtime = time.time() - pipeline_start
         self.log.info(f"Pipeline terminated - runtime: {humanize.naturaldelta(runtime)}")
         self.log.info(f"Final status:\n{self.status}")
+        self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')

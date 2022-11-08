@@ -20,8 +20,8 @@ class AddToQue(Base):
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.11",
         runtime = 60,
-        cores = 10,
-        ram=40,
+        cores = 5,
+        ram=20,
         group="dtu_00009",
     )
 

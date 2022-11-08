@@ -44,16 +44,11 @@ class PairwiseBlast(Base):
     def generate_syscall(self):
         
         self._syscall = f"""\
-main () {{
-    makeblastdb -in {self.fasta_file} -parse_seqids -blastdb_version 5 -title "Database" -dbtype nucl -out {self.database_path}
+makeblastdb -in {self.fasta_file} -parse_seqids -blastdb_version 5 -title "Database" -dbtype nucl -out {self.database_path}
 
-    blastn -query {self.fasta_file} -db {self.database_path} -task dc-megablast -outfmt "6 {self.output_columns}" -num_threads {self.qsub_args["cores"]-1} -subject_besthit >> {self.output_combined}
+blastn -query {self.fasta_file} -db {self.database_path} -task dc-megablast -outfmt "6 {self.output_columns}" -num_threads {self.qsub_args["cores"]-1} -subject_besthit >> {self.output_combined}
 
-    python scripts/symmetrise_blastn.py --blast {self.output_combined} --fasta {self.fasta_file}
-
-    touch {self.success_file}
-}}
-time main
+python scripts/symmetrise_blastn.py --blast {self.output_combined} --fasta {self.fasta_file}
 """
 
 if __name__ == "__main__":

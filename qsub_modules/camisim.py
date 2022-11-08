@@ -240,7 +240,6 @@ done
 
 python scripts/camisim_describe_run.py -d {self.dir_datalabel}
 
-touch {self.success_file}
 """    
         self._syscall = syscall
         return

@@ -1,4 +1,5 @@
 from functools import partial
+import json
 from pathlib import Path
 from re import S
 from Bio import SeqIO
@@ -49,26 +50,30 @@ class BGCSuperCluster:
     def describe_distinct(self):
         if self.kmers_distinct == []:
             return None
-        data = np.array(list(self.kmers_distinct.values()))
-        quartiles = np.percentile(data, [25, 50, 75])
-        data_min, data_max = data.min(), data.max()
-        outstr = f"""\
-{self.name} distribution of distinct kmers.
-Min:    {int(data_min*self.size)}/{self.size}
-Q1:     {int(quartiles[0]*self.size)}/{self.size}
-Median: {int(quartiles[1]*self.size)}/{self.size}
-Q3:     {int(quartiles[2]*self.size)}/{self.size}
-Max:    {int(data_max*self.size)}/{self.size}\
-"""
-        return outstr
+        values, counts = np.unique(list(self.kmers_within.values()), return_counts=True)
+        size = self.size
+        desc = [f"({self.name}) distribution of distinct kmers."]
+        for value, count in zip(values, counts):
+            desc.append(f"{value*size:.0f}/{size}({value*100:.1f}%): {count}")
+        return "\n".join(desc)
 
 class CatalogueAssembler:
-    def __init__(self):
+    def __init__(self, log:Union[str, logging.Logger]=None):
         project_config = configparser.ConfigParser()
-        project_config.read("../config/project_config.ini") #TODO: can we get around this relative import?
+        project_config.read("config/project_config.ini") #TODO: can we get around this relative import?
         self.project_config = project_config
         
         self.kmerlength = project_config.getint("KmerQuantification","KmerLength")
+        if log:
+            if isinstance(log, logging.Logger):
+                self._log = log.getChild(__name__)
+            elif isinstance(log, str):
+                if log.endswith(__name__):
+                    self._log = logging.getLogger(log)
+                else:
+                    logchild = log+"."+__name__
+                    self._log = logging.getLogger(logchild)
+
 
     ## Front matter
     @property
@@ -238,7 +243,7 @@ class CatalogueAssembler:
             raise RuntimeError(msg)
         return self._superclusters
 
-    def apply_superclusters(self, mapping:dict, family_type:str):
+    def apply_superclusters(self, mapping:dict, cluster_type:str="NotSet"):
         """
         arrange bgcs in superclusters based on dict with structure:
         mapping = {
@@ -248,7 +253,7 @@ class CatalogueAssembler:
         """
         superclusters = []
         for super_name, super_members in mapping.items():
-            SC = BGCSuperCluster(name=super_name, type=family_type)
+            SC = BGCSuperCluster(name=super_name, cluster_type=cluster_type)
             for member in super_members:
                 if isinstance(member, BGCData):
                     SC.members.append(member)
@@ -264,6 +269,12 @@ class CatalogueAssembler:
             superclusters.append(SC)
         self._superclusters = superclusters
 
+    
+    def load_supercluster_from_file(self, file:Path):
+        dump = file.read_text()
+        mapping = json.loads(dump)
+        self.apply_superclusters(mapping)
+
     def assign_distinct_sc_kmers(self) -> None:
         for sc in self.superclusters:
             outkmers = set()
@@ -273,6 +284,12 @@ class CatalogueAssembler:
                 outkmers = outkmers.union(set(sc_out.kmers_within.keys()))
             sc.kmers_distinct = {k:v for k,v in sc.kmers_within.items() if k not in outkmers}
             self.log.debug("Frequency of distinct_kmers\n"+sc.describe_distinct())
+
+    def describe_super_clusters(self) -> str:
+        descriptions = []
+        for SC in self.superclusters:
+            descriptions.append(SC.describe_distinct())
+        return "\n".join(descriptions)
     
     def print_catalogues(self, directory:Path):
         self.log.info(f"Writing catalogue to: {directory}")
@@ -283,11 +300,36 @@ class CatalogueAssembler:
             directory.mkdir(parents=True)
         for sc in self.superclusters:
             catalogue_file = directory / (sc.name+".catalogue")
-            catalogue_entries = [f">kmer {i}\n{mer}" for i, mer in enumerate(sc.kmers_distinct)]
+            catalogue_entries = [f">kmer.{i}\n{mer}" for i, mer in enumerate(sc.kmers_distinct)]
             catalogue_file.write_text("\n".join(catalogue_entries))
 
+if __name__ == "__main__":
+    import argparse
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--bgcfasta', required=True, type=Path, help='Multifasta file containing bgcs (concatinated Antismash out)')
+    parser.add_argument('--families', required=True, type=Path, help="File containing json dump of mapping between family names and bgcs.")
+   # parser.add_argument('--kmerusage', choices=['all', 'random', 'spaced'], help="How to sample kmers from the individual bgcs.")
+    parser.add_argument('-o', required=True, type=Path, help="Output folder for catalogues")
+    parser.add_argument('--log', type=str, help="Name of logger to be used with logging.getLog(). Can supply parent logname as classname will be appended.")
+    args = parser.parse_args()
 
+    file_fasta      = Path(args.bgcfasta)
+    file_families   = Path(args.families)
+    output_dir      = Path(args.o)
+    desc_file       = output_dir/"descriptions.txt"
+    catalogue_dir   = output_dir/"catalogues"
+    log_name        = args.log or "SimulateData"
+
+    ca = CatalogueAssembler(log="SimulateData")
+    ca.load_bgcs_from_file(file_fasta)
+    ca.use_kmers_all()
+    ca.generate_kmers()
+    ca.load_supercluster_from_file(file_families)
+    ca.assign_distinct_sc_kmers()
+    
+    desc_file.write_text(ca.describe_super_clusters())
+    ca.print_catalogues(catalogue_dir)
 
 
     

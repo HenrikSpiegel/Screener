@@ -1,43 +1,49 @@
 from qsub_modules.base import Base
 import os
 import pathlib
+from pathlib import Path
 import glob
 import logging
 from typing import List, Union
 
 class QuantifierKmer(Base):
-    def __init__(self, read_files:Union[str, List[str]], fp_catalogue:Union[str, List[str]], output_dir: str, kmer_size = 21, log: logging.Logger=None) -> None:
+    def __init__(self, read_files:Union[Path, List[Path]], fp_catalogue:Union[Path, List[Path]], output_dir: Path, kmer_size = 21, log: logging.Logger=None) -> None:
         if log:
             self.add_external_log(log)
         
         if isinstance(read_files, str):
             read_files = [read_files]
-        self.read_files      = read_files
-
+        self.read_files      = [Path(x) for x in read_files]
+        output_dir = Path(output_dir)
+        self.output_dir = output_dir
+        self.success_file = output_dir / "success"
         # Create a mapping between catalogue and their fps
         if isinstance(fp_catalogue, list):
-            self.catalogues  = fp_catalogue
-        elif os.path.isdir(fp_catalogue):
-            catalogues = glob.glob(os.path.join(fp_catalogue, "*.catalogue*.fa"))
-            self.log.debug(f"Catalogue size: ({len(catalogues)})")
-            self.catalogues  = catalogues
+            self.catalogues  = [Path(x) for x in fp_catalogue]
         else:
-            self.catalogues  = [fp_catalogue]
+            fp_catalogue = Path(fp_catalogue)
+            if fp_catalogue.is_dir():
+                catalogues = list(fp_catalogue.glob("*.catalogue"))
+                self.log.debug(f"Catalogue size: ({len(catalogues)})")
+                self.catalogues  = catalogues
+            elif fp_catalogue.is_file():
+                self.catalogues  = catalogues
+            else:
+                self.log.error("Failed parsing catalogue")
+                raise RuntimeError("Failed parsing catalogue")
 
-        self.fp_catalogue_index = os.path.join(output_dir, "catalogue.index")
-        bgc_name = [x.rsplit("/",1)[1].split(".catalogue")[0] for x in self.catalogues]
+        self.fp_catalogue_index = output_dir/"catalogue.index"
+        bgc_name = [x.stem for x in self.catalogues]
 
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        with open(self.fp_catalogue_index, "w") as fh:
-            lines = [name+" "+path for name,path in zip(bgc_name, self.catalogues)]
-            fh.write("\n".join(lines)+"\n")
-
-
+        lines = [name+"\t"+path.as_posix() for name,path in zip(bgc_name, self.catalogues)]
+        self.fp_catalogue_index.write_text("\n".join(lines))
+    
         self.kmer_size = kmer_size
-        self.output_dir = output_dir
-        self.fp_countdir = os.path.join(output_dir, "counts")
-        pathlib.Path(self.fp_countdir).mkdir(parents=True, exist_ok=True)
-        self.fp_readmer = os.path.join(output_dir, f"read_{kmer_size}mers_.jf")
+
+        self.fp_countdir = output_dir/"counts"
+        self.fp_countdir.mkdir(parents=True, exist_ok=True)
+        self.fp_readmer = output_dir / f"read_{kmer_size}mers_.jf"
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.05 jellyfish/2.3.0",
@@ -65,8 +71,6 @@ class QuantifierKmer(Base):
                 self.log.error("Reads file not found -> "+self.read_files)
                 raise IOError("Reads file not found -> "+self.read_files)
             self.log.debug("Found all input files")
-
-        pathlib.Path(os.path.dirname(self.output_dir)).mkdir(parents=True, exist_ok=True)
 
     def generate_syscall(self) -> None:
         # sets mem / cpu based on default qsub args.
@@ -98,7 +102,6 @@ echo "Average readlength: $average_readlength"
 
 python -m scripts.kmer_summarise --directory {self.fp_countdir} -o {os.path.join(self.output_dir, "kmer_summation.tsv")} -e $average_readlength
 
-touch {os.path.join(self.output_dir, "success")}
 """
         self._syscall = syscall
         return

@@ -1,9 +1,11 @@
+import json
 from qsub_modules.ncbiFetch import NCBIFetch
 from qsub_modules.antismash import Antismash
 from qsub_modules.camisim import Camisim
 from qsub_modules.preprocess import Preprocessor
 from qsub_modules.blastn_pw import PairwiseBlast
 from qsub_modules.add_to_que import AddToQue
+from qsub_modules.kmerquantifier import QuantifierKmer
 
 from pipeline.pipeline_base import PipelineBase
 
@@ -61,7 +63,7 @@ job_id_map['antismash'] = Antismash(
 
 # add camisim:
 camisim_labels = ['camisim_'+label for label in GB_LABELS]
-dependencies.append(('antismash', set(camisim_labels)))
+dependencies.append(('fetch', set(camisim_labels)))
 job_id_map.update(
     {
     label: Camisim(
@@ -75,8 +77,9 @@ job_id_map.update(
 
 # add preprocess:
 preprocess_labels   =  ['preprocess_'+label for label in GB_LABELS]
+preprocess_output_directories  =  [f"data/simulated_data/preprocessed/{label}" for label in GB_LABELS]
 dependencies.extend([(cam, pre) for cam, pre in zip(camisim_labels, preprocess_labels)])
-output_directories  =  [f"data/simulated_data/preprocessed/{label}" for label in GB_LABELS]
+
 input_file_sets = [
   [
       Path("data/simulated_data/camisim")/label/ f"sample_{sample_n}" / "reads" / "anonymous_reads.fq.gz" 
@@ -89,7 +92,7 @@ job_id_map.update(
     label: Preprocessor(
         reads_interleaved=input_files,
         outdir = outdir)
-     for label, input_files, outdir in zip(preprocess_labels, input_file_sets, output_directories)
+     for label, input_files, outdir in zip(preprocess_labels, input_file_sets, preprocess_output_directories)
     }
 )
 
@@ -114,24 +117,61 @@ job_id_map['01_analysis'] = AddToQue(
     name='01_analysis',
 )
 
-# # add pw analysis of partial copsag set.
-# dependencies.append(
-#     ('blast_pw_copsag',)
-# )
-# job_id_map["blast_pw_copsag"] = PairwiseBlast(
-#     fasta_file="/home/projects/dtu_00009/people/henspi/copsac_bgc.fa",
-#     output_dir="data/simulated_data/blast_pairwise/copsag"
-# )
+# add family generation based on (in future) blast_pw
+dependencies.append(
+    ('blast_pw', "bgc_family_gen")
+)
+job_id_map['bgc_family_gen'] = AddToQue(
+    command='python scripts/generate_bgc_families.py -o data/simulated_data/catalogues/family_dump.json',
+    success_file='data/simulated_data/catalogues/success_fam_gen',
+    name='bgc_family_gen',
+)
+
+# add catalogue generation for each family.
+dependencies.append(
+    ({'antismash','bgc_family_gen'}, 'catalogue_generation')
+)
+job_id_map['catalogue_generation'] = AddToQue(
+    command="""\
+python -m lib.catalogue_assembler\
+ --bgcfasta data/simulated_data/antismash/input_genomes/combined_bgc.fa\
+ --families data/simulated_data/catalogues/family_dump.json\
+ -o data/simulated_data/catalogues
+""",
+    success_file='data/simulated_data/catalogues/success_catalogues',
+    name='catalogue_generation',
+)
+
+# add kmer quantification.
+kmerquant_labels = []
+for label in GB_LABELS:
+    for sample in range(N_SAMPLES):
+        job_label = f"kmerQuant_{label}.{sample}"
+        kmerquant_labels.append(job_label)
+        datadir = Path(f"data/simulated_data/preprocessed/{label}/sample_{sample}")
+        dependencies.append(({'preprocess_'+label, "catalogue_generation"}, job_label))
+
+        job_id_map[job_label] = QuantifierKmer(
+            read_files = [
+                datadir/"trimmed.anonymous_reads.fq.gz",  
+                datadir/"trimmed.singleanonymous_reads.fq.gz"],
+            fp_catalogue = "data/simulated_data/catalogues/catalogues",
+            output_dir = f"data/simulated_data/kmer_quantification/{label}/sample_{sample}",
+            kmer_size = config.getint("KmerQuantification","KmerLength")
+        )
+
+
+
+
 
 pipeline_simulate = PipelineBase(
     pipe_name="SimulateData",
     dependencies = dependencies,
     job_map = job_id_map,
-    iteration_sleep=30,
+    iteration_sleep=15,
     testing=False
 )
 
 if __name__ == "__main__":
-    print(pipeline_simulate.jobs_total)
-    #pipeline_simulate.run_pipeline()
-    pass
+    pipeline_simulate.run_pipeline()
+

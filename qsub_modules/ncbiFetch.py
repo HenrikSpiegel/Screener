@@ -31,8 +31,6 @@ class NCBIFetch(Base):
 python {"scripts/ncbi_fetch.py"} \
 --ncbi_ids {" ".join(self.ids)} \
 --outdir {self.outdir}\
-
-touch {self.success_file}
 """
         self._syscall=syscall
 

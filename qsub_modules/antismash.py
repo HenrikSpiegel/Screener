@@ -40,8 +40,6 @@ antismash --output-dir {self.outdir} \
 {self.fastafile}
 #Pulls the output bgcs into 1 file.
 python -m scripts.antismash_as_fasta -i {self.outdir}
-
-touch {self.success_file}
 """
         self._syscall=syscall
 

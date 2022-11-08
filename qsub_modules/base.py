@@ -88,8 +88,8 @@ class Base:
             self.set_qsub_args()
         return self._qsub_args
 
-    def set_qsub_args(self, jobtag: str=None, **kwargs):
-        jobname = self.__class__.__name__
+    def set_qsub_args(self, jobtag: str=None, jobname=None, **kwargs):
+        jobname = jobname or self.__class__.__name__
         if jobtag:
             jobname = "_".join([jobname, jobtag])
 
@@ -114,6 +114,20 @@ class Base:
         if not hasattr(self, "_syscall"):
             self.generate_syscall()
         return self._syscall
+
+    @property
+    def wrapped_syscall(self):
+        call_raw = self.syscall
+        call_wrapped = f"""\
+main () {{
+{call_raw}
+}}
+time main
+
+touch {self.success_file}
+sleep 10
+"""
+        return call_wrapped
 
     @property
     def qstat_dict(self) -> dict:
@@ -184,7 +198,7 @@ class Base:
 
         self.log.debug(f"command:\n{self.syscall}")
         id = submit2(
-            command = self.syscall,
+            command = self.wrapped_syscall,
             **self.qsub_args,
             test=test
         )

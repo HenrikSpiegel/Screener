@@ -49,9 +49,6 @@ class Preprocessor(Base):
 
         calls = [f"sickle pe --gzip-output -l 100 --pe-combo {infile} -t sanger -m {out_inter} -s {out_single}" for infile, out_inter, out_single in zip(self.reads_files, self.fp_outs_interleaved, self.fp_outs_singles)]
         syscall = "\n".join(calls)
-        syscall += f"""
-touch {self.success_file}
-"""
         self._syscall = syscall
         return
 
