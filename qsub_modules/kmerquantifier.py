@@ -35,9 +35,9 @@ class QuantifierKmer(Base):
         self.fp_catalogue_index = output_dir/"catalogue.index"
         bgc_name = [x.stem for x in self.catalogues]
 
-        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
         lines = [name+","+path.as_posix() for name,path in zip(bgc_name, self.catalogues)]
-        self.fp_catalogue_index.write_text("\n".join(lines))
+        self.fp_catalogue_index.write_text(("\n".join(lines))+"\n") #For some reason the last line is ignored unless there is a newline.
     
         self.kmer_size = kmer_size
 

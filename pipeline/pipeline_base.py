@@ -124,11 +124,12 @@ jobs_failed: ({len(self.jobs_failed)})
             cleaned_name = sample_regex.sub("", job)
             
             if cleaned_name != job:
-                dict_belong[job] = "cluster_"+cleaned_name
-                if cleaned_name in dict_clusters:
-                    dict_clusters[cleaned_name].append(job)
+                clust_name = "cluster_"+cleaned_name
+                dict_belong[job] = clust_name
+                if clust_name in dict_clusters:
+                    dict_clusters[clust_name].append(job)
                 else:
-                    dict_clusters[cleaned_name] = [job]
+                    dict_clusters[clust_name] = [job]
             else:
                 dict_belong[job] = cleaned_name
 
@@ -152,14 +153,14 @@ jobs_failed: ({len(self.jobs_failed)})
 
         for child, parents in self.dependency_dict.items():
             if dict_belong[child].startswith('cluster_'):
-                if not child.endswith(".0"):
+                if not child == min(dict_clusters[dict_belong[child]]):
                     continue
                 head = dict_belong[child]
             else:
                 head = None
             for parent in parents:
                 if dict_belong[parent].startswith('cluster_'):
-                    if not child.endswith(".0"):
+                    if not parent == max(dict_clusters[dict_belong[parent]]):
                         continue
                     tail = dict_belong[parent]
                 else:

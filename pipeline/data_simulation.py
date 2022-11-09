@@ -62,7 +62,7 @@ job_id_map['antismash'] = Antismash(
 )
 
 # add camisim:
-camisim_labels = ['camisim_'+label for label in GB_LABELS]
+camisim_labels = ['camisim.'+label for label in GB_LABELS]
 dependencies.append(('fetch', set(camisim_labels)))
 job_id_map.update(
     {
@@ -76,7 +76,7 @@ job_id_map.update(
 
 
 # add preprocess:
-preprocess_labels   =  ['preprocess_'+label for label in GB_LABELS]
+preprocess_labels   =  ['preprocess.'+label for label in GB_LABELS]
 preprocess_output_directories  =  [f"data/simulated_data/preprocessed/{label}" for label in GB_LABELS]
 dependencies.extend([(cam, pre) for cam, pre in zip(camisim_labels, preprocess_labels)])
 
@@ -143,13 +143,13 @@ python -m lib.catalogue_assembler\
 )
 
 # add kmer quantification.
-kmerquant_labels = []
+kmerquant_labels = set()
 for label in GB_LABELS:
     for sample in range(N_SAMPLES):
-        job_label = f"kmerQuant_{label}.{sample}"
-        kmerquant_labels.append(job_label)
+        job_label = f"kmerQuant.{label}.{sample}"
+        kmerquant_labels.add(job_label)
         datadir = Path(f"data/simulated_data/preprocessed/{label}/sample_{sample}")
-        dependencies.append(({'preprocess_'+label, "catalogue_generation"}, job_label))
+        dependencies.append(({'preprocess.'+label, "catalogue_generation"}, job_label))
 
         job_id_map[job_label] = QuantifierKmer(
             read_files = [
@@ -160,8 +160,15 @@ for label in GB_LABELS:
             kmer_size = config.getint("KmerQuantification","KmerLength")
         )
 
-
-
+# add kmer count collection
+dependencies.append((kmerquant_labels, "count_collect"))
+count_fuzzy_path = "data/simulated_data/kmer_quantification/*GB/sample_*/counts/*.counted"
+count_matrices_dir = Path("data/simulated_data/kmer_quantification/count_matrices")
+job_id_map["count_collect"] = AddToQue(
+    command = f"python scripts/collect_count_matrices.py --fuzzy_path '{count_fuzzy_path}' -o {count_matrices_dir}",
+    success_file=count_matrices_dir/".success",
+    name="count_collect"
+)
 
 
 pipeline_simulate = PipelineBase(
@@ -173,5 +180,8 @@ pipeline_simulate = PipelineBase(
 )
 
 if __name__ == "__main__":
+
     pipeline_simulate.run_pipeline()
+
+    pass
 

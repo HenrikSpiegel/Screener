@@ -50,7 +50,7 @@ class BGCSuperCluster:
     def describe_distinct(self):
         if self.kmers_distinct == []:
             return None
-        values, counts = np.unique(list(self.kmers_within.values()), return_counts=True)
+        values, counts = np.unique(list(self.kmers_distinct.values()), return_counts=True)
         size = self.size
         desc = [f"({self.name}) distribution of distinct kmers."]
         for value, count in zip(values, counts):
@@ -60,7 +60,7 @@ class BGCSuperCluster:
 class CatalogueAssembler:
     def __init__(self, log:Union[str, logging.Logger]=None):
         project_config = configparser.ConfigParser()
-        project_config.read("config/project_config.ini") #TODO: can we get around this relative import?
+        project_config.read("../config/project_config.ini") #TODO: can we get around this relative import?
         self.project_config = project_config
         
         self.kmerlength = project_config.getint("KmerQuantification","KmerLength")
@@ -302,6 +302,14 @@ class CatalogueAssembler:
             catalogue_file = directory / (sc.name+".catalogue")
             catalogue_entries = [f">kmer.{i}\n{mer}" for i, mer in enumerate(sc.kmers_distinct)]
             catalogue_file.write_text("\n".join(catalogue_entries))
+    
+    def print_meta_files(self, directory:Path):
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        for sc in self.superclusters:
+            meta_file = directory/ (sc.name+".meta")
+            meta_lines = [f"{kmer}\t{prevalence}\t21" for kmer, prevalence in sorted(sc.kmers_distinct.items(), key=lambda item: item[1], reverse=True)]
+            meta_file.write_text("\n".join(meta_lines))
 
 if __name__ == "__main__":
     import argparse
@@ -319,6 +327,7 @@ if __name__ == "__main__":
     output_dir      = Path(args.o)
     desc_file       = output_dir/"descriptions.txt"
     catalogue_dir   = output_dir/"catalogues"
+    meta_dir        = output_dir /"metafiles"
     log_name        = args.log or "SimulateData"
 
     ca = CatalogueAssembler(log="SimulateData")
@@ -330,6 +339,7 @@ if __name__ == "__main__":
     
     desc_file.write_text(ca.describe_super_clusters())
     ca.print_catalogues(catalogue_dir)
+    ca.print_meta_files(meta_dir)
 
 
     
