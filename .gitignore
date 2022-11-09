@@ -162,3 +162,5 @@ testing/
 testing*/
 notebooks/
 experiments/
+success_*
+**/success*

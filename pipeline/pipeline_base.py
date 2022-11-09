@@ -97,20 +97,22 @@ jobs_failed: ({len(self.jobs_failed)})
 """
         return status_str
 
-    def _color_node(self, job_id):
+    def _style_node(self, job_id):
             if job_id in self.jobs_holding:
-                color="cornsilk"
+                return {'color':'cornsilk', 'style':'filled'}
             elif job_id in self.jobs_queing:
-                color="deepskyblue"
+                return {'color':'deepskyblue', 'style':'filled'}
             elif job_id in self.jobs_running:
-                color="dodgerblue3"
+                if self.job_map[job_id].is_running:
+                    return {'color':'dodgerblue3', 'style':'filled'}
+                else:
+                    return {'color':'dodgerblue3', 'style':'striped'}
             elif job_id in self.jobs_complete:
-                color="darkolivegreen4"
+                return {'color':'darkolivegreen4', 'style':'filled'}
             elif job_id in self.jobs_failed:
-                color="red"
+                return {'color':'red', 'style':'filled'}
             else:
-                color="grey"
-            return color
+                return {'color':'grey', 'style':'filled'}
 
     def generate_graphviz(self, file:Path):    
         
@@ -141,12 +143,12 @@ jobs_failed: ({len(self.jobs_failed)})
                 c.attr(shape='box', style= 'rounded,filled', color='#82d2f0', label=name)
                 for i in range(len(members)-1):
                     sort_mem = sorted(members)
-                    c.node(members[i], color=self._color_node(members[i]))
+                    c.node(members[i], **self._style_node(members[i]))
                     c.edge(sort_mem[i], sort_mem[i+1], style="invis")
-                c.node(members[-1], color=self._color_node(members[-1]))
+                c.node(members[-1], **self._style_node(members[-1]))
 
         for job_id in self.jobs_total - clustered_nodes:
-            dot.node(job_id, color=self._color_node(job_id))
+            dot.node(job_id, **self._style_node(job_id))
 
         for child, parents in self.dependency_dict.items():
             if dict_belong[child].startswith('cluster_'):
@@ -164,7 +166,7 @@ jobs_failed: ({len(self.jobs_failed)})
                     tail = None
                 dot.edge(parent, child, ltail=tail, lhead=head)
 
-        dot.render(file)
+        dot.render(file, cleanup=True)
         self.log.info(f"Dependency graph written -> {file}.pdf")
 
     @property
@@ -279,7 +281,6 @@ jobs_failed: ({len(self.jobs_failed)})
         self.jobs_running -= ids
     
     def find_ready_jobs(self):
-        ready_jobs = set()
         jobs_holding_iter = self.jobs_holding.copy()
         for job_id in jobs_holding_iter:
             # Check if has dependencies:
@@ -288,13 +289,14 @@ jobs_failed: ({len(self.jobs_failed)})
                 self.log.warning(f"{job_id} has upstream failures -> moving to jobs_failed")
                 self.jobs_holding.remove(job_id)
                 self.jobs_failed.add(job_id)
+                self.progress_updated = True
                 continue
 
             if self.job_has_upstream_dependencies(job_id):
                 continue
 
             self.log.debug(f"{job_id}: No upstream dependencies.")
-            self.log.debug(f"Adding jobs to que -> {ready_jobs}")
+            self.log.debug(f"Adding jobs to que -> {job_id}")
             self.jobs_holding.remove(job_id)
             self.jobs_queing.add(job_id)
             self.progress_updated = True
@@ -410,7 +412,7 @@ is_successful: {job_cls.is_successful}
                 else:
                     self.jobs_running.add(job_to_start)
 
-            if self.progress_updated = True
+            if self.progress_updated:
                 self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')
                 self.progress_updated = False
                 
@@ -420,10 +422,12 @@ is_successful: {job_cls.is_successful}
             if (time.time() - last_status_time) > status_time_delta:
                 last_status_time = time.time()
                 self.log.info(f"Progress: {self.progress}\n{self.status} jobs")
+                self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')
                 
             time.sleep(self.iteration_sleep)
         
-        runtime = time.time() - pipeline_start
-        self.log.info(f"Pipeline terminated - runtime: {humanize.naturaldelta(runtime)}")
+        
         self.log.info(f"Final status:\n{self.status}")
         self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')
+        runtime = time.time() - pipeline_start
+        self.log.info(f"Pipeline terminated - runtime: {humanize.naturaldelta(runtime)}")

@@ -48,7 +48,7 @@ if __name__ == "__main__":
     parser.add_argument("--file_fuzzy", default="*.counted", help="Fuzzy filename for counted files.['*.counted']")
 
     parser.add_argument("-k", "--kmerlength", type=int, help="Overwrite default settings given in config/config")
-    parser.add_argument("-l", "--readlength", type=int, help="Overwrite default settings given in config/config")
+    parser.add_argument("-l", "--readlength", type=float, help="Average Readlength of trimmed reads, Overwrite default settings given in config/config")
     parser.add_argument("-e", "--error-rate", type=float, help="Overwrite default settings given in config/config")
 
     parser.add_argument("-o", help="output file [--directory / kmer_summation.tsv]")

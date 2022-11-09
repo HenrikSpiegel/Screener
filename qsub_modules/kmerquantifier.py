@@ -36,7 +36,7 @@ class QuantifierKmer(Base):
         bgc_name = [x.stem for x in self.catalogues]
 
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        lines = [name+"\t"+path.as_posix() for name,path in zip(bgc_name, self.catalogues)]
+        lines = [name+","+path.as_posix() for name,path in zip(bgc_name, self.catalogues)]
         self.fp_catalogue_index.write_text("\n".join(lines))
     
         self.kmer_size = kmer_size
@@ -48,8 +48,8 @@ class QuantifierKmer(Base):
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.05 jellyfish/2.3.0",
         runtime = 30,
-        cores = 19,
-        ram=80,
+        cores = 20,
+        ram=60,
         )
     
     # @property
@@ -87,12 +87,13 @@ in="${{1:-{self.fp_catalogue_index}}}"
 [ ! -f "$in" ] && {{ echo "$0 - File $in not found."; exit 1; }}
 while IFS= read -r file
 do
-    name="$(cut -d' ' -f1 <<<$file)"
-    path="$(cut -d' ' -f2 <<<$file)"
+    name="$(cut -d',' -f1 <<<$file)"
+    path="$(cut -d',' -f2 <<<$file)"
 	## avoid commented filename ##
 	#[[ $file = \#* ]] && continue
     call="jellyfish query {self.fp_readmer} -s $path"
     echo "Counting for: $name"
+    echo "\t($path)"
 	$call > {self.fp_countdir}/$name.counted
 done < "${{in}}"
 
@@ -100,20 +101,20 @@ done < "${{in}}"
 average_readlength=$(python scripts/average_readlength.py -f {" ".join(x.as_posix() for x in self.read_files)})
 echo "Average readlength: $average_readlength"
 
-python -m scripts.kmer_summarise --directory {self.fp_countdir} -o {os.path.join(self.output_dir, "kmer_summation.tsv")} -e $average_readlength
+python scripts/kmer_summarise.py --directory {self.fp_countdir} -o {self.output_dir / "kmer_summation.tsv"} -l $average_readlength
 
 """
         self._syscall = syscall
         return
 
-    def successful(self):
-        success_file = self.output_dir / "success"
-        self.log.debug("Run was succesful")
-        return os.path.isfile(success_file)
+    # def successful(self):
+    #     success_file = self.output_dir / "success"
+    #     self.log.debug("Run was succesful")
+    #     return os.path.isfile(success_file)
 
-    @staticmethod
-    def is_success(output_dir) -> str:
-        return os.path.isfile(os.path.join(output_dir, "kmer_summation.tsv"))
+    # @staticmethod
+    # def is_success(output_dir) -> str:
+    #     return os.path.isfile(os.path.join(output_dir, "kmer_summation.tsv"))
 
 
 
