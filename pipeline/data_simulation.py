@@ -13,6 +13,7 @@ from pipeline.pipeline_base import PipelineBase
 import numpy as np
 import configparser
 from pathlib import Path
+from Bio import SeqIO
 
 
 #### Front matter
@@ -98,6 +99,51 @@ job_id_map.update(
 
 
 ## Analysis part
+
+# add demo of blast:
+def prep_blast_demo(n_shuffled_sequences=2, n_chunks=3) -> Path:
+    data_dir = Path("data/simulated_data/blast_pairwise/demo")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    record = next(SeqIO.parse("data/simulated_data/antismash/input_genomes/combined_bgc.fa", "fasta"))
+    sequence = record.seq.__str__()
+    name = record.name
+
+    chunk_size = int((len(sequence)/n_chunks) + 0.5) #ceil
+    sequence_chunks = [sequence[i*chunk_size:(i+1)*chunk_size] for i in range(n_chunks)]
+    shuffled_seqs = ["".join(np.random.choice(sequence_chunks, size=n_chunks, replace=False)) for i in range(n_shuffled_sequences)]
+
+    outfile = data_dir / 'demo.fa'
+    entries = [f">{name}\n{sequence}"]+[f">{name}-shuffled({i+1})\n{seq}" for i, seq in enumerate(shuffled_seqs)]
+    outfile.write_text("\n".join(entries))
+    return data_dir, outfile
+blast_demo_dir, blast_demo_file = prep_blast_demo()
+
+dependencies.append(
+    ('antismash', 'blast_demo')
+)
+job_id_map['blast_demo'] = PairwiseBlast(
+    fasta_file = blast_demo_file,
+    output_dir= blast_demo_dir
+)
+dependencies.append(
+    ('blast_demo', 'analysis_07_demo')
+)
+job_id_map['analysis_07_demo'] = AddToQue(
+    command=f"""\
+python analysis/07_blast_visualisation.py\
+ --fasta {blast_demo_file}\
+ --blast data/simulated_data/blast_pairwise/demo/combined_blast_results.tsv\
+ --similarity-table data/simulated_data/blast_pairwise/demo/pairwise_table_symmetric.tsv\
+ -o results/07_blast_visualisation/demo\
+ -ph 800\
+ -pw 500
+""",
+    success_file='results/07_blast_visualisation/demo/.success',
+    name='analysis_07_demo',
+)
+
+
+
 # add pairwise blast of bgcs.
 dependencies.append(
     ('antismash', 'blast_pw')
@@ -109,12 +155,28 @@ job_id_map['blast_pw'] = PairwiseBlast(
 
 # add pw analysis of bgc
 dependencies.append(
-    ('blast_pw', '01_analysis')
+    ('blast_pw', 'analysis_01')
 )
-job_id_map['01_analysis'] = AddToQue(
+job_id_map['analysis_01'] = AddToQue(
     command='python analysis/01_compare_input_bgc.py',
     success_file='results/01_compare_input_bgc/success',
-    name='01_analysis',
+    name='analysis_01',
+)
+
+# add blast visualization
+
+dependencies.append(
+    ('blast_pw', 'analysis_07')
+)
+job_id_map['analysis_07'] = AddToQue(
+    command="""\
+python analysis/07_blast_visualisation.py\
+ --fasta data/simulated_data/antismash/input_genomes/combined_bgc.fa\
+ --blast data/simulated_data/blast_pairwise/input_bgc/combined_blast_results.tsv\
+ --similarity-table data/simulated_data/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv
+""",
+    success_file='results/07_blast_visualisation/.success',
+    name='analysis_07',
 )
 
 # add family generation based on (in future) blast_pw
