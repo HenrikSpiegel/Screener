@@ -51,12 +51,12 @@ def generate_hsp_scatters(group) -> List[go.Scatter]:
             go.Scatter(
                 x=[row.qstart, row.qend],
                 y=[q, q],
-                line = {'color': plotly.colors.qualitative.Alphabet[row.Index], 'dash': 'solid', "width":5}
+                line = {'color': plotly.colors.qualitative.Safe[row.Index], 'dash': 'solid', "width":5}
             ),
             go.Scatter(
                 x=[row.sstart, row.send],
                 y=[s, s],
-                line = {'color': plotly.colors.qualitative.Alphabet[row.Index], 'dash': 'solid', "width":5}
+                line = {'color': plotly.colors.qualitative.Safe[row.Index], 'dash': 'solid', "width":5}
             )
         ])
     return scatters

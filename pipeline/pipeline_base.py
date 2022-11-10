@@ -106,7 +106,7 @@ jobs_failed: ({len(self.jobs_failed)})
                 if self.job_map[job_id].is_running:
                     return {'color':'dodgerblue3', 'style':'filled'}
                 else:
-                    return {'color':'dodgerblue3', 'style':'striped'}
+                    return {'color':'deepskyblue:dodgerblue3', 'style':'filled'}
             elif job_id in self.jobs_complete:
                 return {'color':'darkolivegreen4', 'style':'filled'}
             elif job_id in self.jobs_failed:
