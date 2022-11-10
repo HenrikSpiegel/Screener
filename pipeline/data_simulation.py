@@ -142,8 +142,6 @@ python analysis/07_blast_visualisation.py\
     name='analysis_07_demo',
 )
 
-
-
 # add pairwise blast of bgcs.
 dependencies.append(
     ('antismash', 'blast_pw')
