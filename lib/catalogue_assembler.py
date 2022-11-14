@@ -346,7 +346,7 @@ class CatalogueAssembler:
             catalogue_file = directory / (SC.name+".catalogue")
             catalogue_entries = [f">kmer.{i} prevalence {v}\n{mer}" for i, (mer, v) in enumerate(SC.kmers_catalogue.items())]
             catalogue_file.write_text("\n".join(catalogue_entries))
-    
+   
     def print_meta_files(self, directory:Path):
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)

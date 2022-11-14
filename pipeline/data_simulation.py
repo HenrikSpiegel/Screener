@@ -230,6 +230,25 @@ job_id_map["count_collect"] = AddToQue(
     name="count_collect"
 )
 
+###### MAGinator part ######
+
+# prepare MAGinator input:
+dependencies.append(
+    ('count_collect', 'MAGinator.input_prep')
+    #({'count_collect', 'catalogue_generation'}, 'MAGinator.input_prep')
+)
+dir_MAGinator_top = Path("data/simulated_data/MAGinator")
+job_id_map['MAGinator.input_prep'] = AddToQue(
+    command=f"""\
+python scripts/MAGinator_prepinput.py\
+ --catalogues data/simulated_data/catalogues/catalogues\
+ --count-matrix {count_matrices_dir/'counts_all.tsv'}\
+ -o {dir_MAGinator_top}\
+""",
+    success_file=dir_MAGinator_top/".success.input_prep",
+    name = 'MAGinator.input_prep'
+)
+
 
 pipeline_simulate = PipelineBase(
     pipe_name="SimulateData",

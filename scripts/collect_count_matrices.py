@@ -21,6 +21,8 @@ for path in path_glob:
         grouped_dict[cat_name] = [path]
 
 regex_sample_name = re.compile(r"\/(\d+_?\d+GB)\/(sample_\d)\/")
+
+all_counts = []
 for cat_name, cat_count_files in grouped_dict.items():
     dfs = []
     for count_file in cat_count_files:  
@@ -31,4 +33,7 @@ for cat_name, cat_count_files in grouped_dict.items():
                      sep=" ", index_col=0, names=[sample_name])
         )
     df_cat = pd.concat(dfs, axis=1)
-    df_cat.to_csv(outdir/(cat_name+".csv"))
+    all_counts.append(df_cat)
+    df_cat.to_csv(outdir/(cat_name+".tsv"), sep="\t")
+df_count_all = pd.concat(all_counts, axis=0)
+df_count_all.to_csv(outdir/'counts_all.tsv', sep="\t")
