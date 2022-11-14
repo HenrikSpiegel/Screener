@@ -15,7 +15,8 @@ class AddToQue(Base):
         self.name = name or "AddToQue"
         self.jobtag = name
 
-        self.success_file = Path(success_file)
+        if success_file:
+            self.success_file = Path(success_file)
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.11",

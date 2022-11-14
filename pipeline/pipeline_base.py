@@ -472,3 +472,7 @@ is_successful: {job_cls.is_successful}
         self.generate_graphviz(self.log_setup["log_file"].as_posix()+'.gv')
         runtime = time.time() - pipeline_start
         self.log.info(f"Pipeline terminated - runtime: {humanize.naturaldelta(runtime)}")
+        if self.jobs_failed:
+            msg = f"Failed number of jobs: ({len(self.jobs_failed)})"
+            self.log.error(msg)
+            raise RuntimeError(msg)

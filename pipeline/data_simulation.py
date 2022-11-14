@@ -195,7 +195,8 @@ job_id_map['catalogue_generation'] = AddToQue(
 python -m lib.catalogue_assembler\
  --bgcfasta data/simulated_data/antismash/input_genomes/combined_bgc.fa\
  --families data/simulated_data/catalogues/family_dump.json\
- -o data/simulated_data/catalogues
+ -o data/simulated_data/catalogues\
+ --max-catalogue-size 1500
 """,
     success_file='data/simulated_data/catalogues/success_catalogues',
     name='catalogue_generation',
@@ -244,5 +245,4 @@ if __name__ == "__main__":
 
     pipeline_simulate.run_pipeline()
 
-    pass
 

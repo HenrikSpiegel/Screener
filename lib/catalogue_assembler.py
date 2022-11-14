@@ -1,3 +1,4 @@
+from collections import defaultdict
 from functools import partial
 import json
 from pathlib import Path
@@ -31,7 +32,10 @@ class BGCSuperCluster:
     name:   str = field(default_factory=str)
     cluster_type:   str = field(default_factory=str)
     members: List[BGCData] = field(default_factory=list, repr=False)
-    size: int = field(default_factory=int) 
+    size: int = field(default_factory=int)
+    kmers_distinct: dict = field(default_factory=dict, repr=False)
+    kmers_catalogue: dict = field(default_factory=dict, repr=False)
+    
 
     @property
     def kmers_within(self) -> dict:
@@ -46,7 +50,7 @@ class BGCSuperCluster:
             self._kmers_within = shared_kmers
         return self._kmers_within
         
-    kmers_distinct: List = field(default_factory=list, repr=False)
+    
     def describe_distinct(self):
         if self.kmers_distinct == []:
             return None
@@ -204,8 +208,8 @@ class CatalogueAssembler:
         mer1 = Seq(mer)
         mer2 = mer1.reverse_complement()
         if mer1 < mer2:
-            return mer1
-        return mer2
+            return str(mer1)
+        return str(mer2)
 
     def use_kmers_all(self):
         self._kmer_generator = partial(self.kmerise, k=self.kmerlength)
@@ -229,7 +233,7 @@ class CatalogueAssembler:
         self.log.info(f"Generating kmers using generator: {kmer_generator}")
 
         for bgc in self.bgcs:
-            bgc.kmers           = kmer_generator(bgc.sequence)
+            bgc.kmers           = [str(x) for x in kmer_generator(bgc.sequence)]
             bgc.kmers_cannon    = [self.canonicalize(kmer) for kmer in bgc.kmers]
 
             bgc.kmers_unique        = set(bgc.kmers)
@@ -275,15 +279,56 @@ class CatalogueAssembler:
         mapping = json.loads(dump)
         self.apply_superclusters(mapping)
 
-    def assign_distinct_sc_kmers(self) -> None:
-        for sc in self.superclusters:
+    def downsample_kmers(self, kmer_dict:dict, n: Union[int,None], seed: Union[int,None] =1337):
+        ## Downsamples according to prevalence.
+        # kmer_dict = dict(
+        #     k1= 1,
+        #     k2= 1,
+        #     k3= 0.3,
+        #     k4= 0.3
+        # )
+        # given n = 3:
+        # output:
+        #     dict(k1=1, k2=1, k3=0.3) or dict(k1=1, k2=1, k4=0.3)
+
+        if n is None: #passthrough option.
+            return kmer_dict
+
+        if len(kmer_dict) <= n:
+            self.log.debug(f"Len of input kmers is <= n -> ({len(kmer_dict)}) <= ({n})")
+            return kmer_dict
+               
+        grouped_kmers = defaultdict(list)
+        for k,v in kmer_dict.items():
+            grouped_kmers[v].append(k)
+            
+        selected_kmers = []
+        for prevalence, members in sorted(grouped_kmers.items(), key=lambda item: item[0], reverse=True):
+            if len(selected_kmers)+len(members) <=n:
+                selected_kmers.extend(members)
+            else:
+                np.random.seed(seed)
+                selected_kmers.extend(np.random.choice(members, (n-len(selected_kmers)), replace=False))
+                break
+        return {s_kmer:kmer_dict[s_kmer] for s_kmer in selected_kmers}
+
+    def assign_distinct_sc_kmers(self, max_catalogue_size:Union[int,None]=1500, random_seed: Union[int,None]=1337) -> None:
+        """
+        max_catalogue_size = None -> all kmers included in catalogue otherwise downsampled
+        """
+        self.log.info("Assigning distinct kmers")
+        self.log.info(f"Setting kmer_catalogue with max-size of ({max_catalogue_size})")
+
+        for SC in self.superclusters:
+            self.log.debug(f"Assigning distinct kmers for {SC.name}")
             outkmers = set()
-            for sc_out in self.superclusters:
-                if sc == sc_out: 
+            for SC_out in self.superclusters:
+                if SC == SC_out: 
                     continue
-                outkmers = outkmers.union(set(sc_out.kmers_within.keys()))
-            sc.kmers_distinct = {k:v for k,v in sc.kmers_within.items() if k not in outkmers}
-            self.log.debug("Frequency of distinct_kmers\n"+sc.describe_distinct())
+                outkmers = outkmers.union(set(SC_out.kmers_within.keys()))
+            SC.kmers_distinct = {k:v for k,v in SC.kmers_within.items() if k not in outkmers}
+            SC.kmers_catalogue = self.downsample_kmers(SC.kmers_distinct, n=max_catalogue_size, seed=random_seed)
+            self.log.debug("Frequency of distinct_kmers\n"+SC.describe_distinct())
 
     def describe_super_clusters(self) -> str:
         descriptions = []
@@ -292,15 +337,14 @@ class CatalogueAssembler:
         return "\n".join(descriptions)
     
     def print_catalogues(self, directory:Path):
-        self.log.info(f"Writing catalogue to: {directory}")
+        self.log.info(f"Writing catalogues to: {directory}")
         directory = Path(directory)
-
-        if not directory.is_dir():
-            self.log.info(f"Catalogue dir does not exist - creating...")
-            directory.mkdir(parents=True)
-        for sc in self.superclusters:
-            catalogue_file = directory / (sc.name+".catalogue")
-            catalogue_entries = [f">kmer.{i}\n{mer}" for i, mer in enumerate(sc.kmers_distinct)]
+        directory.mkdir(parents=True, exist_ok=True)
+            
+        for SC in self.superclusters:
+            self.log.debug(f"{SC.name} -> catalogue size: ({len(SC.kmers_catalogue)})")
+            catalogue_file = directory / (SC.name+".catalogue")
+            catalogue_entries = [f">kmer.{i} prevalence {v}\n{mer}" for i, (mer, v) in enumerate(SC.kmers_catalogue.items())]
             catalogue_file.write_text("\n".join(catalogue_entries))
     
     def print_meta_files(self, directory:Path):
@@ -317,6 +361,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--bgcfasta', required=True, type=Path, help='Multifasta file containing bgcs (concatinated Antismash out)')
     parser.add_argument('--families', required=True, type=Path, help="File containing json dump of mapping between family names and bgcs.")
+    parser.add_argument('--max-catalogue-size', type=int, help="Maximum size of each catalogue - reduction by random downsampling.")
    # parser.add_argument('--kmerusage', choices=['all', 'random', 'spaced'], help="How to sample kmers from the individual bgcs.")
     parser.add_argument('-o', required=True, type=Path, help="Output folder for catalogues")
     parser.add_argument('--log', type=str, help="Name of logger to be used with logging.getLog(). Can supply parent logname as classname will be appended.")
@@ -335,7 +380,7 @@ if __name__ == "__main__":
     ca.use_kmers_all()
     ca.generate_kmers()
     ca.load_supercluster_from_file(file_families)
-    ca.assign_distinct_sc_kmers()
+    ca.assign_distinct_sc_kmers(max_catalogue_size=args.max_catalogue_size)
     
     desc_file.write_text(ca.describe_super_clusters())
     ca.print_catalogues(catalogue_dir)
