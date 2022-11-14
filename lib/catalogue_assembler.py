@@ -60,7 +60,7 @@ class BGCSuperCluster:
 class CatalogueAssembler:
     def __init__(self, log:Union[str, logging.Logger]=None):
         project_config = configparser.ConfigParser()
-        project_config.read("../config/project_config.ini") #TODO: can we get around this relative import?
+        project_config.read("config/project_config.ini") #TODO: can we get around this relative import?
         self.project_config = project_config
         
         self.kmerlength = project_config.getint("KmerQuantification","KmerLength")

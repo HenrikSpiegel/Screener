@@ -14,31 +14,13 @@ class QuantifierKmer(Base):
         if isinstance(read_files, str):
             read_files = [read_files]
         self.read_files      = [Path(x) for x in read_files]
+        self.fp_catalogue = Path(fp_catalogue)
+
         output_dir = Path(output_dir)
         self.output_dir = output_dir
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         self.success_file = output_dir / "success"
-        # Create a mapping between catalogue and their fps
-        if isinstance(fp_catalogue, list):
-            self.catalogues  = [Path(x) for x in fp_catalogue]
-        else:
-            fp_catalogue = Path(fp_catalogue)
-            if fp_catalogue.is_dir():
-                catalogues = list(fp_catalogue.glob("*.catalogue"))
-                self.log.debug(f"Catalogue size: ({len(catalogues)})")
-                self.catalogues  = catalogues
-            elif fp_catalogue.is_file():
-                self.catalogues  = catalogues
-            else:
-                self.log.error("Failed parsing catalogue")
-                raise RuntimeError("Failed parsing catalogue")
 
-        self.fp_catalogue_index = output_dir/"catalogue.index"
-        bgc_name = [x.stem for x in self.catalogues]
-
-        output_dir.mkdir(parents=True, exist_ok=True)
-        lines = [name+","+path.as_posix() for name,path in zip(bgc_name, self.catalogues)]
-        self.fp_catalogue_index.write_text(("\n".join(lines))+"\n") #For some reason the last line is ignored unless there is a newline.
-    
         self.kmer_size = kmer_size
 
         self.fp_countdir = output_dir/"counts"
@@ -59,6 +41,29 @@ class QuantifierKmer(Base):
     #     return setup
 
     def preflight(self, check_input=False) -> None:
+        fp_catalogue = self.fp_catalogue 
+        if isinstance(fp_catalogue, list):
+            self.catalogues  = [Path(x) for x in fp_catalogue]
+        else:
+            fp_catalogue = Path(fp_catalogue)
+            if fp_catalogue.is_dir():
+                catalogues = list(fp_catalogue.glob("*.catalogue"))
+                self.log.debug(f"Catalogue size: ({len(catalogues)})")
+                self.catalogues  = catalogues
+            elif fp_catalogue.is_file():
+                self.catalogues  = catalogues
+            else:
+                self.log.error("Failed parsing catalogue")
+                raise RuntimeError("Failed parsing catalogue")
+
+        self.fp_catalogue_index = self.output_dir/"catalogue.index"
+        bgc_name = [x.stem for x in self.catalogues]
+
+        
+        lines = [name+","+path.as_posix() for name,path in zip(bgc_name, self.catalogues)]
+        self.fp_catalogue_index.write_text(("\n".join(lines))+"\n") #For some reason the last line is ignored unless there is a newline.
+
+
         if check_input:
             catalogues_exist = [os.path.isfile(x) for x in self.catalogues]
             if not all(catalogues_exist):

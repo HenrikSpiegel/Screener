@@ -34,7 +34,7 @@ class AddToQue(Base):
             )    
 
     def generate_syscall(self):
-        call = self.command + "\n" + f"touch {self.success_file}"
+        call = self.command
         self._syscall = call
 
     def preflight(self, **kwargs) -> None:
@@ -55,24 +55,15 @@ if __name__ == "__main__":
     api = AddToQue(
         command = args.command,
         success_file=args.success,
-        test = args.test,
+        #test = args.test,
         name=args.name
     )
 
     user_args = {}
-    if args.o:
-        for kwarg in args.o:
+    if args.options:
+        for kwarg in args.options:
             kw, arg = kwarg.split(":")
             user_args[kw] = arg
 
     api.set_qsub_args(jobname=args.name, **user_args)
-    jobid = api.add_to_que()
-    print(f"Added to que: {api.name} / {jobid}")
-
-
-
-
-
-    # jobname=jobname,
-    # output = os.path.join("logs", jobname),
-    # error = os.path.join("logs",jobname)
+    api.add_to_que(test=args.test)

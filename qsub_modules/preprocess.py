@@ -30,14 +30,14 @@ class Preprocessor(Base):
     qsub_requirements = dict(
         modules = "tools sickle/20150314",
         runtime = 360,
-        cores = 20,
-        ram=80,
+        cores = 10,
+        ram=40,
         )
     
     def preflight(self, check_input=False) -> None:
         if check_input:
-            if not os.path.isfile(self.reads_file):
-                err_msg = f"Reads file not found -> {self.reads_file}"
+            if not all([x.is_file() for x in self.reads_files]):
+                err_msg = f"Reads file not found -> {[x for x in self.reads_files if not x.is_file()]}"
                 self.log.error(err_msg)
                 raise FileNotFoundError(err_msg)
         for outs in self.fp_outs_interleaved:

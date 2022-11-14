@@ -41,6 +41,7 @@ class PipelineBase:
         pipe_name:str = Path(__file__).stem,
         max_workers:int = 5,
         iteration_sleep:int = 120,
+        rerun_downstream = False,
         testing: bool = False
         ):
 
@@ -48,6 +49,7 @@ class PipelineBase:
         self.iteration_sleep = iteration_sleep
         self.testing = testing
         self.pipe_name = pipe_name
+        self.rerun_downstream = rerun_downstream
 
         self.log.info("Building dependency tree")
         self.dependencies = dependencies
@@ -73,13 +75,33 @@ class PipelineBase:
         """
         Move jobs which has already been completed.
         """
+        def children_recursive(parent, mapping, old_children=set()):   
+            new_children = mapping.get(parent, set())
+            old_children.update(new_children)
+            for child in new_children:
+                children_recursive(child, mapping, old_children)
+            return old_children
+
+
         self.log.info("Checking if any jobs are already finished")
         for label, cls in self.job_map.items():
             self.log.debug(f"Checking {label}")
             if cls.is_successful:
-                self.log.info(f"{label} has already been run - moving to completed.")
+                self.log.debug(f"{label} has already been run - moving to completed.")
                 self.jobs_holding.remove(label)
                 self.jobs_complete.add(label)
+
+        if self.rerun_downstream:
+            # if any upstream dependencies have been triggered downstream should be rerun.
+            jobs_to_rerun = set()
+            for job_id in self.jobs_holding:
+                jobs_to_rerun.update(children_recursive(job_id, self.parentage_dict))
+            if jobs_to_rerun:
+                self.log.warning(f"Jobs marked for rerun due to upstream changes ({len(jobs_to_rerun)})")
+                self.jobs_holding.update(jobs_to_rerun)
+                self.jobs_complete -= jobs_to_rerun
+
+
 
     @property
     def status(self):
@@ -175,7 +197,7 @@ jobs_failed: ({len(self.jobs_failed)})
         return dict(
                 name = self.pipe_name,
                 level = logging.getLevelName(project_config.get("ProjectWide","LoggingLevel")),
-                log_file = Path("logs/pipeline")/self.pipe_name
+                log_file = (Path("logs/pipeline")/self.pipe_name).with_suffix(".log")
             )    
 
     @property
@@ -201,11 +223,21 @@ jobs_failed: ({len(self.jobs_failed)})
                 log_file = Path(setup["log_file"])
                 log_file.parent.mkdir(parents=True, exist_ok=True)
                 log_file.unlink(missing_ok=True)
+                
 
                 file_handler = logging.FileHandler(log_file)
                 file_handler.setFormatter(formatter)
                 file_handler.setLevel(setup["level"])
                 logger.addHandler(file_handler)
+
+                log_file_crit = log_file.with_suffix(".critical")
+                log_file_crit.unlink(missing_ok=True)
+                file_handler_crit = logging.FileHandler(log_file_crit)
+                file_handler_crit.setFormatter(formatter)
+                file_handler_crit.setLevel(logging.WARNING)
+                logger.addHandler(file_handler_crit)
+
+
                 logger.debug(f"logfile at -> {log_file}")
             self._log = logger
         return self._log
@@ -213,6 +245,7 @@ jobs_failed: ({len(self.jobs_failed)})
     def build_dependency_dict(self):
         all_jobs = set()
         dependency_dict = {}
+        parentage_dict  = {}
         for dep in self.dependencies:
             if len(dep) == 1: # use this approach ("jobname", ) to add jobs without prior dependencies
                 all_jobs.add(dep[0])
@@ -225,9 +258,16 @@ jobs_failed: ({len(self.jobs_failed)})
                     dependency_dict[child].update(parents)
                 else:
                     dependency_dict[child] = parents
+            for parent in parents:
+                if parent in parentage_dict:
+                    parentage_dict[parent].update(children)
+                else:
+                    parentage_dict[parent] = children
+
         self.jobs_holding = all_jobs.copy()
         self.jobs_total   = all_jobs.copy()
         self.dependency_dict = dependency_dict
+        self.parentage_dict  = parentage_dict
         self.log.info(f"Found ({len(all_jobs)}) jobs to run.")
         self.log.debug(str(all_jobs))
 

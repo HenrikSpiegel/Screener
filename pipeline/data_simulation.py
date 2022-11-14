@@ -100,26 +100,23 @@ job_id_map.update(
 
 ## Analysis part
 
-# add demo of blast:
-def prep_blast_demo(n_shuffled_sequences=2, n_chunks=5) -> Path:
-    data_dir = Path("data/simulated_data/blast_pairwise/demo")
-    data_dir.mkdir(parents=True, exist_ok=True)
-    record = next(SeqIO.parse("data/simulated_data/antismash/input_genomes/combined_bgc.fa", "fasta"))
-    sequence = record.seq.__str__()
-    name = "SequenceX"
+# Add demonstration of blast+similarity.
 
-    chunk_size = int((len(sequence)/n_chunks) + 0.5) #ceil
-    sequence_chunks = [sequence[i*chunk_size:(i+1)*chunk_size] for i in range(n_chunks)]
-    shuffled_seqs = ["".join(np.random.choice(sequence_chunks, size=n_chunks, replace=False)) for i in range(n_shuffled_sequences)]
 
-    outfile = data_dir / 'demo.fa'
-    entries = [f">{name}\n{sequence}"]+[f">{name}-({i+1})\n{seq}" for i, seq in enumerate(shuffled_seqs)]
-    outfile.write_text("\n".join(entries))
-    return data_dir, outfile
-blast_demo_dir, blast_demo_file = prep_blast_demo()
 
 dependencies.append(
-    ('antismash', 'blast_demo')
+    ('antismash', 'blast_demo_prep')
+)
+job_id_map["blast_demo_prep"] = AddToQue(
+    command="python scripts/blast_demo_prep.py --n_shuffled_sequences 2 --n_chunks 5",
+    success_file="data/simulated_data/blast_pairwise/demo/.success_prep",
+    name="blast_demo_prep"
+)
+
+blast_demo_dir = Path("data/simulated_data/blast_pairwise/demo")
+blast_demo_file = blast_demo_dir/"demo.fa"
+dependencies.append(
+    ('blast_demo_prep', 'blast_demo')
 )
 job_id_map['blast_demo'] = PairwiseBlast(
     fasta_file = blast_demo_file,
@@ -238,6 +235,8 @@ pipeline_simulate = PipelineBase(
     dependencies = dependencies,
     job_map = job_id_map,
     iteration_sleep=15,
+    max_workers=10,
+    rerun_downstream=True,
     testing=False
 )
 

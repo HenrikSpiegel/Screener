@@ -41,8 +41,8 @@ class Camisim(Base):
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.11 perl samtools/1.13 camisim/1.3",
         runtime = 120,
-        cores = 30,
-        ram=100,
+        cores = 10,
+        ram=40,
         )
 
     def generate_supporting_files(self):
