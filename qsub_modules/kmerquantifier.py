@@ -29,7 +29,7 @@ class QuantifierKmer(Base):
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.05 jellyfish/2.3.0",
-        runtime = 30,
+        runtime = 60,
         cores = 20,
         ram=60,
         )

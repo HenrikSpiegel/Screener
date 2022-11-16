@@ -164,3 +164,4 @@ notebooks/
 experiments/
 success_*
 **/success*
+.snakemake/

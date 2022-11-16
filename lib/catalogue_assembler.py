@@ -24,8 +24,8 @@ class BGCData:
     kmers:              List[str] = field(default_factory=list, repr=False)
     kmers_unique:       Set[str] = field(default_factory=set, repr=False)
 
-    kmers_cannon:              List[str] = field(default_factory=list, repr=False)
-    kmers_unique_cannon:       Set[str] = field(default_factory=set, repr=False)
+    kmers_canon:              List[str] = field(default_factory=list, repr=False)
+    kmers_unique_canon:       Set[str] = field(default_factory=set, repr=False)
 
 @dataclass
 class BGCSuperCluster:
@@ -42,7 +42,7 @@ class BGCSuperCluster:
         if not hasattr(self, "_kmers_within"):
             shared_kmers = dict()
             for m in self.members:
-                for k in m.kmers_unique:
+                for k in m.kmers_unique_canon:
                     if k in shared_kmers:
                         shared_kmers[k] += 1/self.size
                     else:
@@ -174,16 +174,16 @@ class CatalogueAssembler:
         return [bgc.kmers_unique for bgc in self.bgcs]
 
     @property
-    def bgc_kmers_cannon(self) -> List[List[str]]:
-        if not all(bgc.kmers_cannon for bgc in self.bgcs):
+    def bgc_kmers_canon(self) -> List[List[str]]:
+        if not all(bgc.kmers_canon for bgc in self.bgcs):
             self.generate_kmers()
-        return [bgc.kmers_cannon for bgc in self.bgcs]
+        return [bgc.kmers_canon for bgc in self.bgcs]
 
     @property
-    def bgc_kmers_unique_cannon(self) -> List[List[str]]:
-        if not all(bgc.kmers_unique_cannon for bgc in self.bgcs):
+    def bgc_kmers_unique_canon(self) -> List[List[str]]:
+        if not all(bgc.kmers_unique_canon for bgc in self.bgcs):
             self.generate_kmers()
-        return [bgc.kmers_unique_cannon for bgc in self.bgcs]
+        return [bgc.kmers_unique_canon for bgc in self.bgcs]
 
 
     def kmerise(self, seq, k:int=21):
@@ -234,10 +234,10 @@ class CatalogueAssembler:
 
         for bgc in self.bgcs:
             bgc.kmers           = [str(x) for x in kmer_generator(bgc.sequence)]
-            bgc.kmers_cannon    = [self.canonicalize(kmer) for kmer in bgc.kmers]
+            bgc.kmers_canon    = [self.canonicalize(kmer) for kmer in bgc.kmers]
 
             bgc.kmers_unique        = set(bgc.kmers)
-            bgc.kmers_unique_cannon = set(bgc.kmers_cannon)
+            bgc.kmers_unique_canon = set(bgc.kmers_canon)
 
     @property
     def superclusters(self) -> List[BGCSuperCluster]:
@@ -352,7 +352,7 @@ class CatalogueAssembler:
         directory.mkdir(parents=True, exist_ok=True)
         for sc in self.superclusters:
             meta_file = directory/ (sc.name+".meta")
-            meta_lines = [f"{kmer}\t{prevalence}\t21" for kmer, prevalence in sorted(sc.kmers_distinct.items(), key=lambda item: item[1], reverse=True)]
+            meta_lines = [f"{kmer}\t{prevalence}\t21" for kmer, prevalence in sorted(sc.kmers_catalogue.items(), key=lambda item: item[1], reverse=True)]
             meta_file.write_text("\n".join(meta_lines))
 
 if __name__ == "__main__":
