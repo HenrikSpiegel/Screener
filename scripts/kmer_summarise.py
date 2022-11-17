@@ -28,21 +28,21 @@ def get_summary_frame(directory: str, file_fuzzy: str = "*.counted"):
         contig = file.rsplit("/",1)[1].split(".counted")[0]
 
         df = pd.read_csv(file, sep=" ", names=["mer","mer_count"])
-        counts = df.loc[:, "count"]
+        counts = df.loc[:, "mer_count"]
         X = np.ones_like(counts)
         res = sm.NegativeBinomial(counts, X).fit()
         NB_mu = np.exp(res.params.const)
         
         #df["mer_count"] = 2*df["mer_count"]
         df_res = df.describe().transpose().reset_index(drop=True)
-        df_res["Contig"] = contig
+        df_res["contig"] = contig
         df_res["count_nonzero"] = len(df.query("mer_count > 0"))
         df_res["count_unique"] = len(df.mer.drop_duplicates())
         df_res["count_unique_nonzero"] = len(df.query("mer_count > 0").mer.drop_duplicates())
         df_res["negBinom_mu"] = NB_mu
-        df_res.rename(columns={"50%":"Depth median", "mean":"Depth avg"}, inplace=True)
+        df_res.rename(columns={"50%":"depth_median", "mean":"depth_avg"}, inplace=True)
 
-        df_out = df_res[["Contig"]+[x for x in df_res.columns if x != "Contig"]]
+        df_out = df_res[["contig"]+[x for x in df_res.columns if x != "contig"]]
         dfs.append(df_out)
 
     return pd.concat(dfs)
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         args.o = os.path.join(args.directory, "kmer_summation.tsv")
     
     df = get_summary_frame(args.directory, args.file_fuzzy)
-    if all([x == 0 for x in df["Depth median"]]):
+    if all([x == 0 for x in df["depth_median"]]):
         print("kmer_summarise.py: All 'Depth median' == 0", file=sys.stderr)
         #raise RuntimeError("kmer_summarise.py: All 'Depth median' == 0")
 
@@ -80,8 +80,11 @@ if __name__ == "__main__":
     read_length = args.readlength   or config.getint("KmerQuantification", "AverageReadLength")
     error_rate  = args.error_rate   or config.getfloat("KmerQuantification", "PerBaseErrorRate")
 
-    df["Depth Error Corrected"]         = error_correction(df["Depth median"], k=kmerlength, error_rate=error_rate)
-    df["Depth Error/Edge Corrected"]    = edgeloss_correction(df["Depth Error Corrected"], k=kmerlength, L=read_length)
+    df["median_depth_error_corrected"]         = error_correction(df["depth_median"], k=kmerlength, error_rate=error_rate)
+    df["median_depth_error_edgecorrected"]    = edgeloss_correction(df["median_depth_error_corrected"], k=kmerlength, L=read_length)
+
+    df["negbinom_depth_error_corrected"]         = error_correction(df["negBinom_mu"], k=kmerlength, error_rate=error_rate)
+    df["negbinom_depth_error_edge_corrected"]    = edgeloss_correction(df["negbinom_depth_error_corrected"], k=kmerlength, L=read_length)
 
     df.to_csv(args.o, index=False, sep="\t")
 

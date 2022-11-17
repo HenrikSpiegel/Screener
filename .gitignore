@@ -165,3 +165,4 @@ experiments/
 success_*
 **/success*
 .snakemake/
+temp/
