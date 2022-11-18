@@ -6,11 +6,14 @@ import shutil
 
 # geneID_collectionID.tsv
 def generate_MAGinator_files(dir_catalogue, dir_MAGinator):
-    dir_output = Path(dir_MAGinator)/"clusters/gene_lists"   
-    dir_output.mkdir(parents=True, exist_ok=True)
-    file_geneID_collectionID = dir_output / 'geneID_collectionID.tsv'
-    file_fasta_fai = dir_output / 'all_genes_nonredundant.fasta.fai'
-    file_clustername_order = dir_output /"collectionID_order.txt"
+    dir_MAGinator = Path(dir_MAGinator)
+ 
+    file_geneID_collectionID = dir_MAGinator / 'clusters/gene_lists/geneID_collectionID.tsv'
+    file_fasta_fai = dir_MAGinator / 'genes/all_genes_nonredundant.fasta.fai'
+    file_clustername_order = dir_MAGinator /"collectionID_order.txt"
+
+    file_geneID_collectionID.parent.mkdir(parents=True, exist_ok=True)
+    file_fasta_fai.parent.mkdir(parents=True, exist_ok=True)
 
     file_geneID_collectionID.unlink(missing_ok=True)
     file_fasta_fai.unlink(missing_ok=True)
@@ -30,13 +33,32 @@ def generate_MAGinator_files(dir_catalogue, dir_MAGinator):
             "\n".join(f"{x}\t1" for x in kmers) + '\n'
             
         )
-        
     fh_geneID_collectionID.close()
     fh_fasta_fai.close()
                                      
     file_clustername_order.write_text("\n".join(clustername_order))
     print(f"Created geneID_collectionID with ({i}) collections -> {file_geneID_collectionID}", file=sys.stderr)
     print(f"Created all_genes_nonredundant.fasta.fai -> {file_fasta_fai}", file=sys.stderr)
+
+    #Add required but unused files.
+    unused_dir = dir_MAGinator / 'unused'
+    unused_dir.mkdir(parents=True, exist_ok=True)
+    (unused_dir/"contigs.fasta").touch()
+    (unused_dir/"clusters.tsv").touch()
+    read_file = unused_dir/"fake_reads.fa"
+    read_file.write_text("fakesample1, fakesample2")
+
+    tab_file = (dir_MAGinator/'tabs/metagenomicspecies.tab')
+    tab_file.parent.mkdir(exist_ok=True, parents=True)
+    tab_file.touch()
+
+    vamb_file = unused_dir/"fake_vamb.file"
+    vamb_file.touch()
+    par_file = unused_dir/'parameters.tab'
+    par_file.write_text(f"reads {read_file.resolve()}\nvamb_clusters {vamb_file.resolve()}")
+
+
+
     
 if __name__ == "__main__":
     import argparse
