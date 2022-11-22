@@ -27,8 +27,8 @@ class QuantifierMap(Base):
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.05 minimap2/2.6 samtools/1.14 cmseq/1.0.4",
         runtime = 360,
-        cores = 38,
-        ram=180,
+        cores = 10,
+        ram=40,
         )
 
     def preflight(self, check_input=False) -> None:
@@ -61,15 +61,15 @@ python3 -m cmseq.breadth_depth --minqual 0 -f {self.output_dir / "sorted.aln.bam
         self._syscall = syscall
         return
 
-    def successful(self):
-        success_file = self.output_dir / "cmseq_summation.tsv"
-        if not success_file.is_file():
-            return False
-        return success_file.read_bytes().count(b"\n") > 2
+    # def successful(self):
+    #     success_file = self.output_dir / "cmseq_summation.tsv"
+    #     if not success_file.is_file():
+    #         return False
+    #     return success_file.read_bytes().count(b"\n") > 2
 
-    @staticmethod
-    def is_success(output_dir) -> str:
-        return (Path(output_dir) / "cmseq_summation.tsv").is_file()
+    # @staticmethod
+    # def is_success(output_dir) -> str:
+    #     return (Path(output_dir) / "cmseq_summation.tsv").is_file()
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 # requires : tools gcc/7.4.0 intel/perflibs/2020_update4 R/4.0.0 
 
+#Rscript --vanilla MAGinator_extract_results.R data/simulated_data/MAGinator/collectionID_order.txt data/simulated_data/MAGinator/signature_genes/screened data/simulated_data/MAGinator/screened_flat
+
 
 args = commandArgs(trailingOnly=TRUE)
 if (length(args)!=3) {

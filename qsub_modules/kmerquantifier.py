@@ -11,7 +11,7 @@ class QuantifierKmer(Base):
         if log:
             self.add_external_log(log)
         
-        if isinstance(read_files, str):
+        if not isinstance(read_files, list):
             read_files = [read_files]
         self.read_files      = [Path(x) for x in read_files]
         self.fp_catalogue = Path(fp_catalogue)
@@ -127,16 +127,17 @@ python scripts/kmer_summarise.py --directory {self.fp_countdir} -o {self.output_
 if __name__ == "__main__":
 
     import argparse
+    import sys
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--reads", required=True, help="file(s) containing reads to be mapped")
-    parser.add_argument("--catalogue", required=True, help="Path to catalogue file or dir with multiple catalogue files (.fa) - must exist on init.")
-    parser.add_argument("-o", required=True, help="output dir")
-    parser.add_argument("-k", default=21, help="Kmer length [21]")
+    parser.add_argument("--reads", required=True, nargs='+', type=Path, help="file(s) containing reads to be mapped")
+    parser.add_argument("--catalogue", required=True, type=Path, help="Path to catalogue file or dir with multiple catalogue files (.fa) - must exist on init.")
+    parser.add_argument("-o", required=True, type=Path, help="output dir")
+    parser.add_argument("-k", default=21, type=int, help="Kmer length [21]")
     args = parser.parse_args()
 
     api = QuantifierKmer(read_files=args.reads, fp_catalogue=args.catalogue, output_dir=args.o, kmer_size = args.k)
     api.preflight(check_input=True)
-    api.set_qsub_args(jobtag="test")
+    api.set_qsub_args(jobtag="cli")
     api.generate_syscall() #not needed as we run the default
     api.add_to_que(test=False)

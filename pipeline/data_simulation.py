@@ -6,6 +6,7 @@ from qsub_modules.preprocess import Preprocessor
 from qsub_modules.blastn_pw import PairwiseBlast
 from qsub_modules.add_to_que import AddToQue
 from qsub_modules.kmerquantifier import QuantifierKmer
+from qsub_modules.mapquantifier import QuantifierMap
 
 from pipeline.pipeline_base import PipelineBase
 
@@ -102,8 +103,6 @@ job_id_map.update(
 
 # Add demonstration of blast+similarity.
 
-
-
 dependencies.append(
     ('antismash', 'blast_demo_prep')
 )
@@ -196,7 +195,7 @@ python -m lib.catalogue_assembler\
  --bgcfasta data/simulated_data/antismash/input_genomes/combined_bgc.fa\
  --families data/simulated_data/catalogues/family_dump.json\
  -o data/simulated_data/catalogues\
- --max-catalogue-size 1500
+ --max-catalogue-size 5000
 """,
     success_file='data/simulated_data/catalogues/success_catalogues',
     name='catalogue_generation',
@@ -230,6 +229,30 @@ job_id_map["count_collect"] = AddToQue(
     name="count_collect"
 )
 
+# # add mapping quantification
+# map_quant_labels = set()
+
+# mapquantifier_reference = "data/simulated_data/antismash/input_genomes/combined_bgc.fa"
+
+# for label in GB_LABELS:
+#     for sample in range(N_SAMPLES):
+#         job_label = f"mapQuant.{label}.{sample}"
+#         map_quant_labels.add(job_label)
+#         datadir = Path(f"data/simulated_data/preprocessed/{label}/sample_{sample}")
+#         dependencies.append(({'preprocess.'+label, "antismash"}, job_label))
+
+#         job_id_map[job_label] = QuantifierMap(
+#                     reads        = [
+#                                     datadir/"trimmed.anonymous_reads.fq.gz",  
+#                                     datadir/"trimmed.singleanonymous_reads.fq.gz"],
+#                     reference   = mapquantifier_reference, 
+#                     output_dir  = f"data/simulated_data/map_quantification/{label}/sample_{sample}", 
+#                     minMapQ     = config.getint("MapQuantification", "MinMapQ"),
+#                     minBaseQ    = config.getint("MapQuantification", "MinBaseQ")
+#         )
+
+
+
 ###### MAGinator part ######
 
 # prepare MAGinator input:
@@ -255,7 +278,7 @@ pipeline_simulate = PipelineBase(
     dependencies = dependencies,
     job_map = job_id_map,
     iteration_sleep=15,
-    max_workers=10,
+    max_workers=12,
     rerun_downstream=True,
     testing=False
 )

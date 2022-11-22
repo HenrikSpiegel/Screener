@@ -10,11 +10,13 @@ all_bgcs = ['NC_014328.1.region001', 'NC_014328.1.region002',
        'NZ_LT906445.1.region001', 'NZ_LT906470.1.region001',
        'NZ_LT906470.1.region002', 'NZ_LT906470.1.region003']
 
-manualclustermap = {
-    "ranthipeptide": ["NZ_LT906470.1.region003", "NZ_CP020566.1.region001", "NZ_LT906445.1.region001"]
-}
+pre_assigned = ["NZ_LT906470.1.region003", "NZ_CP020566.1.region001", "NZ_LT906445.1.region001"]
+manualclustermap = dict(
+    ranthipeptide_group = ['NZ_CP020566.1.region001','NZ_LT906445.1.region001'],
+    ranthipeptide_alone = ['NZ_LT906470.1.region003']
+)
 #all others are single member families.
-manualclustermap.update({x:[x] for x in all_bgcs if x not in manualclustermap["ranthipeptide"]})
+manualclustermap.update({x:[x] for x in all_bgcs if x not in pre_assigned})
 
 if __name__ == "__main__":
     import argparse

@@ -363,7 +363,11 @@ jobs_failed: ({len(self.jobs_failed)})
 
             if job_cls.is_complete:
                 self.progress_updated = True
-                time.sleep(2) #It appears we sometimes miss the successfile - perhaps a slight desync issue.
+
+                if not job_cls.is_successful:
+                    self.log.warning(f"{job} failed initial success-check - retrying in (15) seconds")
+                    time.sleep(15)
+
                 if job_cls.is_successful:
                     self.log.info(f"{job} has succesfully completed")
                     self.jobs_running.remove(job)

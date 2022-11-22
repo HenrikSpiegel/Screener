@@ -176,8 +176,12 @@ sleep 10
     def is_successful(self):
         if hasattr(self, "success_file"):
             self.log.debug(self.success_file)
-            self.log.debug(self.success_file.exists())
             return self.success_file.exists()
+            # if not self.success_file.exists():
+            #     self.log.warning("Initial success-check failed waiting 15 seconds")
+            #     time.sleep(15)
+            #     self.success_file.exists()
+            # return True
         else:
             self.log.warning(f"{self.__class__.__name__} doesn't have a success_file set.")
             return False
