@@ -5,15 +5,14 @@ import configparser
 import logging
 
 
-project_config = configparser.ConfigParser()
-project_config.read("config/project_config.ini")
 
 
 class AddToQue(Base):
-    def __init__(self, command:str, success_file:Path, name:str=None):
+    def __init__(self, command:str, success_file:Path, name:str=None, loglvl = "DEBUG"):
         self.command = command
         self.name = name or "AddToQue"
         self.jobtag = name
+        self.loglvl = loglvl
 
         if success_file:
             self.success_file = Path(success_file)
@@ -30,7 +29,7 @@ class AddToQue(Base):
     def log_setup(self):
         return dict(
                 name = self.name,
-                level = logging.getLevelName(project_config.get("ProjectWide","LoggingLevel")),
+                level = self.loglvl,
                 log_file = None
             )    
 

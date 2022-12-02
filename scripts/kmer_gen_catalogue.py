@@ -58,16 +58,17 @@ if __name__ == "__main__":
 
     parser.add_argument('-o', "--outdir", help='output directory', required=True)
     parser.add_argument('-f', "--fastas", nargs='+', help='path(s) to fastafiles to catalogue (multi fasta is split)', required=True)
-    parser.add_argument('-k', type=int, help="Overwrites project_config.ini")
+    parser.add_argument('-k', type=int, required = True, help="Overwrites project_config.ini")
     args = parser.parse_args()
 
-    config = configparser.ConfigParser()
-    config.read("config/project_config.ini")
+    #config = configparser.ConfigParser()
+    #config.read("config/project_config.ini")
 
-    if args.k:
-        kmer = args.k
-    else:
-        kmer=config.getint("KmerQuantification","KmerLength")
+    #if args.k:
+    #    kmer = args.k
+    #else:
+    #    kmer=config.getint("KmerQuantification","KmerLength")
+    kmer = args.k
     pathlib.Path(args.outdir).mkdir(parents=True, exist_ok=True)
 
     sys.stderr.write(f"Generating ({kmer})-mer catalogue(s) from ({len(args.fastas)}) fastafile(s). \n")

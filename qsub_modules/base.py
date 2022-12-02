@@ -7,9 +7,6 @@ from qsub_modules.functions import submit2
 import configparser
 from enum import Enum
 
-project_config = configparser.ConfigParser()
-project_config.read("config/project_config.ini")
-
 class QsubStatus(Enum):
     UNKNOWN = None
     RUNNING  = "R"
@@ -19,22 +16,30 @@ class QsubStatus(Enum):
 
 
 class Base:
-    working_dir = "/home/projects/dtu_00009/people/henspi/git/Screener"
+    #working_dir = "/home/projects/dtu_00009/people/henspi/git/Screener"
     QsubStatus = QsubStatus
     #Configs: should be moved to a real config file:
-    @property
-    def working_dir(self):
-        return "/home/projects/dtu_00009/people/henspi/git/Screener"
+    #@property
+    #def working_dir(self):
+    #    return "/home/projects/dtu_00009/people/henspi/git/Screener"
+    loglvl = "DEBUG"
 
     def as_abspath(self, path):
         #simple wrapper to add the wdir to a relative path.
         return os.path.join(self.working_dir, path)
     
+    def set_config(self, config_file:Path):
+        fp = Path(config_file)
+        if not fp.is_file():
+            raise FileNotFoundError("Config_file doesn't exist" + fp.as_posix())
+        self.config = configparser.ConfigParser()
+        self.config_file = fp
+
     @property
-    def log_setup(self):
+    def log_setup(self):     
         return dict(
                 name = self.__class__.__name__,
-                level = logging.getLevelName(project_config.get("ProjectWide","LoggingLevel")),
+                level = logging.getLevelName(self.loglvl),
                 log_file = None
             )    
 
@@ -59,6 +64,7 @@ class Base:
             
             if setup["log_file"]:
                 Path(os.path.dirname(setup["log_file"])).mkdir(parents=True, exist_ok=True)
+
                 file_handler = logging.FileHandler(setup["log_file"])
                 file_handler.setFormatter(formatter)
                 file_handler.setLevel(setup["level"])
@@ -100,7 +106,7 @@ class Base:
             qsub_args = self.qsub_requirements
 
         qsub_args.update(dict(
-            directory = self.working_dir,
+            #directory = self.working_dir,
             group="dtu_00009",
             jobname=jobname,
             output = Path("logs")/"qsub"/ (jobname+ "_stdout"),

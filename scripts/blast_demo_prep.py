@@ -2,10 +2,10 @@ import numpy as np
 from pathlib import Path
 from Bio import SeqIO
 
-def prep_blast_demo(n_shuffled_sequences=2, n_chunks=5) -> Path:
-    data_dir = Path("data/simulated_data/blast_pairwise/demo")
+def prep_blast_demo(seq_file, outdir, n_shuffled_sequences=2, n_chunks=5) -> Path:
+    data_dir = Path(outdir)
     data_dir.mkdir(parents=True, exist_ok=True)
-    record = next(SeqIO.parse("data/simulated_data/antismash/input_genomes/combined_bgc.fa", "fasta"))
+    record = next(SeqIO.parse(seq_file, "fasta"))
     sequence = record.seq.__str__()
     name = "SequenceX"
 
@@ -24,6 +24,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_shuffled_sequences", type=int)
     parser.add_argument("--n_chunks", type=int)
+    parser.add_argument("--seq-file", type=Path, required=True)
+    parser.add_argument("-o", type=Path, required=True)
     args = parser.parse_args()
 
-    prep_blast_demo(args.n_shuffled_sequences, args.n_chunks)
+    prep_blast_demo(
+        seq_file=args.seq_file, 
+        outdir=args.o, 
+        n_shuffled_sequences=args.n_shuffled_sequences, 
+        n_chunks=args.n_chunks)

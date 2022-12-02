@@ -4,22 +4,26 @@ from qsub_modules.base import Base
 import logging
 import os, sys, time
 import re
-from typing import Callable
+from typing import Callable, List
 import pandas as pd
 import io
 from pathlib import Path
 import glob
 
 class Camisim(Base):
-    def __init__(self, readsGB:float=0.2, n_samples:int=2, outdir:str="data/camisim",seed=29092022, log: logging.Logger=None) -> None:
+    def __init__(self, fps_genome_overview:List[Path], fp_genomes_dir:Path ,readsGB:float=0.2, n_samples:int=2, outdir:str="data/camisim", seed=29092022, log: logging.Logger=None, loglvl = "DEBUG") -> None:
         """
         Generates a synthetic metagenomic sample.
         The outdir determines the high level dir, while each dataset (readsGB) are
         placed in their own subdirectories.
         """
+        self.fps_genome_overview = [Path(x) for x in fps_genome_overview]
+        self.fp_genomes_dir = Path(fp_genomes_dir)
+
         if log:
             self.add_external_log(log)
-        
+
+        self.loglvl = loglvl
         self.readsGB = readsGB
         self.datalabel = self.gen_prefix(readsGB)
         self.n_samples = n_samples
@@ -40,52 +44,61 @@ class Camisim(Base):
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.11 perl samtools/1.13 camisim/1.3",
-        runtime = 120,
+        runtime = 360,
         cores = 10,
         ram=40,
         )
 
-    def generate_supporting_files(self):
-        """
-        Generates the config files needed to run CAMISIM for frozen set of input genomes with variable mass of
-        reads generated.
-        These could be generated running from the script allowing easier adjustments.
+    def generate_supporting_files_from_df(self, df_camisim:pd.DataFrame):
 
-        #Note this is done slightly convoluted due to errors writing \t files in a manual fashion.
-        """
-        if not self.fp_id_map.is_file():
-            self.log.debug(f"writting -> {self.fp_id_map}")
-            id_to_genome_str = f"""\
-Genome1,data/simulated_data/input_genomes/NC_014328_1.fa
-Genome2,data/simulated_data/input_genomes/NZ_CP020566_1.fa
-Genome3,data/simulated_data/input_genomes/NZ_CP053893_1.fa
-Genome4,data/simulated_data/input_genomes/NZ_LT906445_1.fa
-Genome5,data/simulated_data/input_genomes/NZ_LT906470_1.fa
-"""
-            pd.read_csv(io.StringIO(id_to_genome_str), sep=",").to_csv(self.fp_id_map, sep="\t", index=False)
+        self.log.debug(f"writting -> {self.fp_id_map}")
+        df_camisim[["genome_ID","fp"]].to_csv(self.fp_id_map, sep="\t", index=False, header=False)#, encoding='utf-8-sig')
+
+        self.log.debug(f"writting -> {self.fp_meta}")
+        df_camisim[["genome_ID","OTU","NCBI_ID","novelty_category"]].to_csv(self.fp_meta, sep="\t", index=False)#, encoding='utf-8-sig')
+
+#     def generate_supporting_files(self):
+#         """
+#         Generates the config files needed to run CAMISIM for frozen set of input genomes with variable mass of
+#         reads generated.
+#         These could be generated running from the script allowing easier adjustments.
+
+#         #Note this is done slightly convoluted due to errors writing \t files in a manual fashion.
+#         """
+#         if not self.fp_id_map.is_file():
+#             self.log.debug(f"writting -> {self.fp_id_map}")
+#             id_to_genome_str = f"""\
+# Genome1,data/simulated_data/input_genomes/NC_014328_1.fa
+# Genome2,data/simulated_data/input_genomes/NZ_CP020566_1.fa
+# Genome3,data/simulated_data/input_genomes/NZ_CP053893_1.fa
+# Genome4,data/simulated_data/input_genomes/NZ_LT906445_1.fa
+# Genome5,data/simulated_data/input_genomes/NZ_LT906470_1.fa
+# """
+#             pd.read_csv(io.StringIO(id_to_genome_str), sep=",").to_csv(self.fp_id_map, sep="\t", index=False)
     
-        if not self.fp_meta.is_file():
-            self.log.debug(f"writting -> {self.fp_meta}")
-            metadata_str = """\
-genome_ID,OTU,NCBI_ID,novelty_category
-Genome1,x,748727,known_species
-Genome2,x,39777,known_species
-Genome3,x,1520,known_species
-Genome4,x,29466,known_species
-Genome5,x,248315,known_species
-    """
-            pd.read_csv(io.StringIO(metadata_str), sep=",").to_csv(self.fp_meta, sep="\t", index=False)
+#         if not self.fp_meta.is_file():
+#             self.log.debug(f"writting -> {self.fp_meta}")
+#             metadata_str = """\
+# genome_ID,OTU,NCBI_ID,novelty_category
+# Genome1,x,748727,known_species
+# Genome2,x,39777,known_species
+# Genome3,x,1520,known_species
+# Genome4,x,29466,known_species
+# Genome5,x,248315,known_species
+#     """
+#             pd.read_csv(io.StringIO(metadata_str), sep=",").to_csv(self.fp_meta, sep="\t", index=False)
 
-        if not self.fp_distri.is_file():
-            self.log.debug(f"writting -> {self.fp_distri}")
-            distribution_str = """\
-Genome1,0.2
-Genome2,0.2
-Genome3,0.2
-Genome4,0.2
-Genome5,0.2
-"""
-            pd.read_csv(io.StringIO(distribution_str), sep=",").to_csv(self.fp_distri, sep="\t", index=False)
+#         if not self.fp_distri.is_file():
+#             self.log.debug(f"writting -> {self.fp_distri}")
+#             distribution_str = """\
+# Genome1,0.2
+# Genome2,0.2
+# Genome3,0.2
+# Genome4,0.2
+# Genome5,0.2
+# """
+#             pd.read_csv(io.StringIO(distribution_str), sep=",").to_csv(self.fp_distri, sep="\t", index=False)
+
 
     def generate_config(self):
         config_content = f"""\
@@ -162,7 +175,8 @@ num_communities=1
 # "nodes.dmp"
 # "merged.dmp"
 # "names.dmp"
-ncbi_taxdump=/services/tools/camisim/1.3/tools/ncbi-taxonomy_20170222.tar.gz
+#ncbi_taxdump=/services/tools/camisim/1.3/tools/ncbi-taxonomy_20170222.tar.gz
+ncbi_taxdump=/home/projects/dtu_00009/people/henspi/git/Screener/temp/taxdump_fixed.tar.gz
 
 # the strain simulator for de novo strain creation
 strain_simulation_template=/services/tools/camisim/1.3/scripts/StrainSimulationWrapper/sgEvolver/simulation_dir/
@@ -175,12 +189,12 @@ metadata={self.fp_meta}
 id_to_genome_file={self.fp_id_map}
 
 # how many genomes do you want to sample over all?
-genomes_total=5
-num_real_genomes=5
+genomes_total={self.n_genomes}
+num_real_genomes={self.n_genomes}
 
 # how many genomes per species taxon
 #   (species taxon will be replaced by OTU-cluster later on)
-max_strains_per_otu=1
+max_strains_per_otu=1000
 ratio=1
 
 # which kind of different samples do you need?
@@ -204,30 +218,70 @@ view=no\
 
 
         if self.dir_datalabel.is_dir():
-            if self.successful():
-                raise RuntimeError("Camisim Already Run - Please reset directory.")
+            if self.success_file.is_file():
+                raise RuntimeError("Camisim Already Ran successfully - Please reset directory.")
             self.log.warning(f"Removing files from previous failed runs -> {self.dir_datalabel}")
             shutil.rmtree(self.dir_datalabel)
 
-        if check_input:
-            input_files = glob.glob("data/simulated_data/input_genomes/*.fa") #TODO: set to check from genomes from config.
-            if len(input_files) != 6:
-                msg = "Didnt find input files (5 genomes .fa + 1 combined.fa)"
-                self.log.error(msg)
-                raise IOError(msg)
-            self.log.info("Found all input files")
+        # if check_input:
+        #     input_files = glob.glob("data/simulated_data/input_genomes/*.fa") #TODO: set to check from genomes from config.
+        #     if len(input_files) != 6:
+        #         msg = "Didnt find input files (5 genomes .fa + 1 combined.fa)"
+        #         self.log.error(msg)
+        #         raise IOError(msg)
+        #     self.log.info("Found all input files")
         
         self.log.debug("Generating supporting files and run config.")
         config_folder = self.outdir / "configs"
         config_folder.mkdir(parents=True, exist_ok=True)
-        self.generate_supporting_files()
+
+        # Grab specifications for genomes.
+        df_assembly_overviews = pd.concat(
+            pd.read_csv(fp, sep="\t").assign(genus = fp.stem.split("_")[0])
+            for fp in self.fps_genome_overview
+        )
+        
+        df_assembly_overviews.rename(columns= {'taxid':'NCBI_ID'}, inplace=True)
+        given_columns = set(df_assembly_overviews.columns)
+        required_columns = {"assembly_accession", "NCBI_ID"}
+        if (required_columns - given_columns) != set():
+           raise RuntimeError(f"df_genome_specifications must contain: {required_columns}. Input missing -> {required_columns - given_columns}")
+        df_camisim_pre =  df_assembly_overviews.loc[:,["genus", "assembly_accession", "NCBI_ID"]]
+        df_camisim_pre["genome_ID"] = df_camisim_pre.genus + (df_camisim_pre.index+1).astype(str)
+        df_camisim_pre.reset_index(drop=True, inplace=True)
+
+        df_camisim_pre["OTU"] = "x"
+        df_camisim_pre["novelty_category"] = "known_species"
+
+        #df_camisim_pre["fp"] = [self.fp_genomes_dir/ (acc+".fna") for acc in df_camisim_pre.assembly_accession.values]
+       
+        #lets find the filepaths. We always try to unzip and rezip so we will remove .gz prefix if it exists.
+        filepaths = []
+        for assembly in df_camisim_pre.assembly_accession:
+            assembly_fp = list(self.fp_genomes_dir.glob(assembly+"*"))
+            if not len(assembly_fp) == 1:
+                raise RuntimeError(f"Did not find 1 unique fp found ({len(assembly_fp)}) -> {assembly}")
+            filepaths.append(assembly_fp[0].as_posix().replace(".gz",""))
+        df_camisim_pre["fp"] = filepaths
+
+        self.n_genomes = len(df_camisim_pre)
+        self.log.info(f"Found ({self.n_genomes}) genomes to simulate")
+        
+        self.generate_supporting_files_from_df(df_camisim_pre)
         self.generate_config()
 
     def generate_syscall(self) -> None:
         # sets mem / cpu based on default qsub args.
 
         syscall=f"""\
+#unzip files.
+echo "unzipping {self.fp_genomes_dir}"
+gunzip {self.fp_genomes_dir}/*
+
 python /services/tools/camisim/1.3/metagenomesimulation.py {self.fp_config}
+
+echo "zipping {self.fp_genomes_dir}"
+gzip {self.fp_genomes_dir}/*
 
 #Cleanup generated sample names.
 START=0
@@ -244,13 +298,13 @@ python scripts/camisim_describe_run.py -d {self.dir_datalabel}
         self._syscall = syscall
         return
 
-    def successful(self):
-        success_file = self.dir_datalabel / "success"
-        return success_file.exists()
+    # def successful(self):
+    #     success_file = self.dir_datalabel / "success"
+    #     return success_file.exists()
 
-    @staticmethod
-    def is_success(dir_datalabel) -> str:
-        return os.path.isfile(os.path.join(dir_datalabel, "success"))
+    # @staticmethod
+    # def is_success(dir_datalabel) -> str:
+    #     return os.path.isfile(os.path.join(dir_datalabel, "success"))
 
 if __name__ == "__main__":
 

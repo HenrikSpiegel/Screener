@@ -31,9 +31,19 @@ def annotation_from_genbank(gbk_files: List[Path]) -> dict:
     return seq_annotation
 
 if __name__ == '__main__':
-    antismashdir = Path("data/simulated_data/antismash/input_genomes")
-    symmetric_blastres = Path("data/simulated_data/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv")
-    output = Path("results") / Path(__file__).stem
+
+    import argparse
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--antismashdir", required=True, type =Path)
+    parser.add_argument("--blast-table", required=True, type=Path)
+    parser.add_argument("-o", required=True, type=Path)
+    args = parser.parse_args()
+
+    antismashdir = args.antismashdir #Path("data/simulated_data/antismash/input_genomes")
+    symmetric_blastres = args.blast_table #Path("data/simulated_data/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv")
+    output = Path(args.o) #Path("results") / Path(__file__).stem
+    output.mkdir(parents=True, exist_ok=True)
     
     gbk_files = [x for x in antismashdir.glob("*.gbk") if x.name != "combined.gbk"]
     seq_annotation = annotation_from_genbank(gbk_files)

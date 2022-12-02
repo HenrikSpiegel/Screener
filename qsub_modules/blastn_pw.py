@@ -7,7 +7,12 @@ from typing import Union, List
 from pathlib import Path
 
 class PairwiseBlast(Base):
-    def __init__(self, fasta_file: Path, output_dir: Path, ):
+    def __init__(self, fasta_file: Path, output_dir: Path, log=None, loglvl = "DEBUG"):
+
+        if log:
+            self.add_external_log(log)
+        self.loglvl = loglvl
+
         self.fasta_file = Path(fasta_file)
 
         self.output_dir = Path(output_dir)
@@ -20,9 +25,9 @@ class PairwiseBlast(Base):
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.05 perl/5.30.2 ncbi-blast/2.12.0+",
-        runtime = 120,
-        cores = 30,
-        ram=100,
+        runtime = 360,
+        cores = 38,
+        ram=180,
         )
 
     def preflight(self, check_input=True):

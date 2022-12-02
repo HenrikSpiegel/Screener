@@ -10,10 +10,11 @@ from qsub_modules.functions import submit2
 from qsub_modules.base import Base
 
 class Assembler(Base):
-    def __init__(self, reads_interleaved: str, output_dir: str="data/simulated_data/assembly/default", log: logging.Logger=None) -> None:
+    def __init__(self, reads_interleaved: str, output_dir: str="data/simulated_data/assembly/default", log: logging.Logger=None, loglvl="DEBUG") -> None:
         if log:
             self.add_external_log(log)
-
+        self.loglvl = loglvl
+        
         self.output_dir = output_dir
         self.reads_interleaved = reads_interleaved
 

@@ -7,9 +7,17 @@ import logging
 from typing import List, Union
 
 class QuantifierKmer(Base):
-    def __init__(self, read_files:Union[Path, List[Path]], fp_catalogue:Union[Path, List[Path]], output_dir: Path, kmer_size = 21, log: logging.Logger=None) -> None:
+    def __init__(self, 
+            read_files : Union[Path, List[Path]], 
+            fp_catalogue : Union[Path, List[Path]], 
+            output_dir : Path,
+            kmer_size = 21,
+            log: logging.Logger=None,
+            loglvl = "DEBUG",
+            ) -> None:
         if log:
             self.add_external_log(log)
+        self.loglvl = loglvl
         
         if not isinstance(read_files, list):
             read_files = [read_files]

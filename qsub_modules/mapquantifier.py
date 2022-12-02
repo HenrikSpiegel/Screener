@@ -11,9 +11,10 @@ from qsub_modules.functions import submit2
 from qsub_modules.base import Base
 
 class QuantifierMap(Base):
-    def __init__(self, reads:Union[str, List[str]], reference:str, output_dir: str, minMapQ: int=30, minBaseQ:int=20, log: logging.Logger=None) -> None:
+    def __init__(self, reads:Union[str, List[str]], reference:str, output_dir: str, minMapQ: int=30, minBaseQ:int=20, log: logging.Logger=None, loglvl="DEBUG") -> None:
         if log:
             self.add_external_log(log)
+        self.loglvl = loglvl
         
         if isinstance(reads, str):
             reads = [reads]

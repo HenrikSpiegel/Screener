@@ -62,12 +62,10 @@ class BGCSuperCluster:
         return "\n".join(desc)
 
 class CatalogueAssembler:
-    def __init__(self, log:Union[str, logging.Logger]=None):
-        project_config = configparser.ConfigParser()
-        project_config.read("config/project_config.ini") #TODO: can we get around this relative import?
-        self.project_config = project_config
+    def __init__(self, kmerlength:int=21, log:Union[str, logging.Logger]=None, loglvl="DEBUG"):
         
-        self.kmerlength = project_config.getint("KmerQuantification","KmerLength")
+        self.kmerlength = kmerlength
+        self.loglvl = loglvl
         if log:
             if isinstance(log, logging.Logger):
                 self._log = log.getChild(__name__)
@@ -84,7 +82,7 @@ class CatalogueAssembler:
     def log_setup(self):
         return dict(
                 name = self.__class__.__name__,
-                level = logging.getLevelName(self.project_config.get("ProjectWide","LoggingLevel")),
+                level = logging.getLevelName(self.loglvl),
                 log_file = None
             )    
     @property
@@ -362,10 +360,14 @@ if __name__ == "__main__":
     parser.add_argument('--bgcfasta', required=True, type=Path, help='Multifasta file containing bgcs (concatinated Antismash out)')
     parser.add_argument('--families', required=True, type=Path, help="File containing json dump of mapping between family names and bgcs.")
     parser.add_argument('--max-catalogue-size', type=int, help="Maximum size of each catalogue - reduction by random downsampling.")
+    parser.add_argument("--kmersize", type=int, default=21)
    # parser.add_argument('--kmerusage', choices=['all', 'random', 'spaced'], help="How to sample kmers from the individual bgcs.")
     parser.add_argument('-o', required=True, type=Path, help="Output folder for catalogues")
     parser.add_argument('--log', type=str, help="Name of logger to be used with logging.getLog(). Can supply parent logname as classname will be appended.")
+    parser.add_argument("-v", "--loglvl", type=str, default="DEBUG")
     args = parser.parse_args()
+
+    #(self, kmerlength:int=21, log:Union[str, logging.Logger]=None, loglvl="DEBUG")
 
     file_fasta      = Path(args.bgcfasta)
     file_families   = Path(args.families)
@@ -375,7 +377,7 @@ if __name__ == "__main__":
     meta_dir        = output_dir /"metafiles"
     log_name        = args.log or "SimulateData"
 
-    ca = CatalogueAssembler(log="SimulateData")
+    ca = CatalogueAssembler(log="SimulateData",kmerlength=args.kmersize, loglvl=args.loglvl)
     ca.load_bgcs_from_file(file_fasta)
     ca.use_kmers_all()
     ca.generate_kmers()

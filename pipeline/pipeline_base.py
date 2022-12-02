@@ -13,10 +13,6 @@ import graphviz
 import numpy as np
 from qsub_modules.base import Base as QBase
 
-project_config = configparser.ConfigParser()
-config_path = Path('config/project_config.ini')
-project_config.read(config_path)
-
 class QsubStatus(Enum):
     UNKNOWN = None
     RUNNING  = "R"
@@ -38,12 +34,21 @@ class PipelineBase:
     def __init__(self, 
         dependencies: List[Tuple[Union[str, List[str]], Union[str, List[str]]]],
         job_map: Dict[str, QBase],
+        config_file: Path,
         pipe_name:str = Path(__file__).stem,
         max_workers:int = 5,
         iteration_sleep:int = 120,
         rerun_downstream = False,
-        testing: bool = False
+        testing: bool = False,
         ):
+
+        
+        
+        config_path = Path(config_file)
+        if not config_file.is_file():
+            raise FileNotFoundError("Config file not found -> "+config_file.as_posix())
+        self.project_config = configparser.ConfigParser()
+        self.project_config.read(config_path)
 
         self.max_workers = max_workers
         self.iteration_sleep = iteration_sleep
@@ -196,7 +201,7 @@ jobs_failed: ({len(self.jobs_failed)})
     def log_setup(self):
         return dict(
                 name = self.pipe_name,
-                level = logging.getLevelName(project_config.get("ProjectWide","LoggingLevel")),
+                level = logging.getLevelName(self.project_config.get("ProjectWide","LoggingLevel")),
                 log_file = (Path("logs/pipeline")/self.pipe_name).with_suffix(".log")
             )    
 

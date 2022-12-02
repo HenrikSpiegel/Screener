@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 class Preprocessor(Base):
-    def __init__(self, reads_interleaved:List[Path], outdir:Path, log: logging.Logger=None) -> None:
+    def __init__(self, reads_interleaved:List[Path], outdir:Path, log: logging.Logger=None, loglvl="DEBUG") -> None:
         """
         Note it is assummed that the grandparent +  file combination are unique.
         sample_0/reads/reads.fa.gz -> outdir/sample_0/trimmed.reads.fa.gz
@@ -16,6 +16,7 @@ class Preprocessor(Base):
         """
         if log:
             self.add_external_log(log)
+        self.loglvl = loglvl
 
         if not isinstance(reads_interleaved, list):
             reads_interleaved = [reads_interleaved]
