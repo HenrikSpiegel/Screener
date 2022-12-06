@@ -57,13 +57,17 @@ python scripts/symmetrise_blastn.py --blast {self.output_combined} --fasta {self
 """
 
 if __name__ == "__main__":
-    
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--fasta", required=True, type=Path, help="Multifasta file containing all partners for the pairwise blast")
+    parser.add_argument("-o", required=True, type=Path, help="output dir")
+    args = parser.parse_args()
+
     pb = PairwiseBlast(
-        "data/simulated_data/antismash/input_genomes/combined_bgc.fa", 
-        "data/simulated_data/pairwise")
+        fasta_file=args.fasta,
+        output_dir=args.o)
     pb.preflight()
     pb.add_to_que()
 
-    pb.wait_for_finish()
 
     

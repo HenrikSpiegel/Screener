@@ -128,26 +128,31 @@ job_id_map.update(
 )
 
 
-# # add pairwise blast of found bgcs.
-# dependencies.append(
-#     ('antismash', 'blast_pw')
-# )
-# job_id_map['blast_pw'] = PairwiseBlast(
-#     fasta_file = WD_DATA / "antismash/input_genomes/combined_bgc.fa",
-#     output_dir=  WD_DATA / "blast_pairwise/input_bgc",
-#     loglvl=LOGLEVEL
-# )
+# add pairwise blast of found bgcs.
+dependencies.append(
+    ('antismash', 'blast_pw')
+)
+job_id_map['blast_pw'] = PairwiseBlast(
+    fasta_file = WD_DATA / "antismash/input_genomes/combined_bgc.fa",
+    output_dir=  WD_DATA / "blast_pairwise/input_bgc",
+    loglvl=LOGLEVEL
+)
 
-# # add pw analysis of bgc
-# dependencies.append(
-#     ('blast_pw', 'analysis_01')
-# )
-# job_id_map['analysis_01'] = AddToQue(
-#     command=f"python analysis/01_compare_input_bgc.py --antismashdir {WD_DATA / 'antismash/input_genomes'} --blast-table {WD_DATA / 'blast_pairwise/input_bgc/pairwise_table_symmetric.tsv'} -o {WD_DATA /'results/01_compare_input_bgc'}",
-#     success_file=WD_DATA /'results/01_compare_input_bgc/.success',
-#     name='analysis_01',
-#     loglvl=LOGLEVEL
-# )
+# add pw analysis of bgc
+dependencies.append(
+    ('blast_pw', 'analysis_01')
+)
+job_id_map['analysis_01'] = AddToQue(
+    command=f"""\
+python analysis/01_compare_input_bgc_genera.py\
+ --blast {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv\
+ --genera-table-dir {WD_DATA}/input_genomes\
+ -o {WD_DATA}/results/01_compare_input_bgc_genera\
+""",        
+    name='analysis_01',
+    loglvl=LOGLEVEL,
+    success_file=WD_DATA / "/results/01_compare_input_bgc_genera/.success"
+)
 
 pipeline_simulate = PipelineBase(
     config_file=CONFIG_FILE,
