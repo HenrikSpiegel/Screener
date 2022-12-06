@@ -6,6 +6,7 @@ from qsub_modules.antismash import Antismash
 from qsub_modules.camisim import Camisim
 from qsub_modules.blastn_pw import PairwiseBlast
 from qsub_modules.preprocess import Preprocessor
+from qsub_modules.mcl_clustering import MCLClustering
 
 import numpy as np
 import configparser
@@ -128,7 +129,7 @@ job_id_map.update(
 )
 
 
-# add pairwise blast of found bgcs.
+## add pairwise blast of found bgcs.
 dependencies.append(
     ('antismash', 'blast_pw')
 )
@@ -140,9 +141,9 @@ job_id_map['blast_pw'] = PairwiseBlast(
 
 # add pw analysis of bgc
 dependencies.append(
-    ('blast_pw', 'analysis_01')
+    ('blast_pw', 'analysis.01')
 )
-job_id_map['analysis_01'] = AddToQue(
+job_id_map['analysis.01'] = AddToQue(
     command=f"""\
 python analysis/01_compare_input_bgc_genera.py\
  --blast {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv\
@@ -152,6 +153,31 @@ python analysis/01_compare_input_bgc_genera.py\
     name='analysis_01',
     loglvl=LOGLEVEL,
     success_file=WD_DATA / "/results/01_compare_input_bgc_genera/.success"
+)
+
+## Clustering of found bgcs.
+dependencies.append(
+    ('blast_pw', 'mcl_clustering')
+)
+job_id_map["mcl_clustering"] = MCLClustering(
+    blast_file = WD_DATA / "blast_pairwise/input_bgc/pairwise_table_symmetric.tsv",
+    output_dir = WD_DATA / "mcl_clustering",
+    loglvl=LOGLEVEL,
+)
+
+# add analysis of clustering.
+dependencies.append(
+    ("mcl_clustering", "analysis.12")
+)
+job_id_map["analysis.12"] = AddToQue(
+    command=f"""\
+python analysis/12_inputbgc_with_clustering.py\
+ --blast {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv
+ --genera-table-dir {WD_DATA}/input_genomes
+ --mcl-cluster-dir {WD_DATA}/mcl_clustering
+ -o {WD_DATA}/results/12_inputbgc_with_clustering
+""",
+    success_file=WD_DATA / "results/12_inputbgc_with_clustering/.success"
 )
 
 pipeline_simulate = PipelineBase(

@@ -47,7 +47,7 @@ class Camisim(Base):
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.11 perl samtools/1.13 camisim/1.3",
-        runtime = 360,
+        runtime = 16*60, #With the larger genome sets we are pushing at least 6 hours at 0.5GB-5samples
         cores = 38,
         ram=180,
         )
