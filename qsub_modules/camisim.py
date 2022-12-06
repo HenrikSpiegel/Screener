@@ -11,7 +11,7 @@ from pathlib import Path
 import glob
 
 class Camisim(Base):
-    def __init__(self, fps_genome_overview:List[Path], fp_genomes_dir:Path ,readsGB:float=0.2, n_samples:int=2, outdir:str="data/camisim", seed=29092022, log: logging.Logger=None, loglvl = "DEBUG") -> None:
+    def __init__(self, fps_genome_overview:List[Path], fp_genomes_dir:Path, taxdump:Path=None, readsGB:float=0.2, n_samples:int=2, outdir:str="data/camisim", seed=29092022, log: logging.Logger=None, loglvl = "DEBUG") -> None:
         """
         Generates a synthetic metagenomic sample.
         The outdir determines the high level dir, while each dataset (readsGB) are
@@ -29,6 +29,9 @@ class Camisim(Base):
         self.n_samples = n_samples
         self.outdir = Path(outdir)
         self.seed = seed
+        if not taxdump:
+            taxdump="/services/tools/camisim/1.3/tools/ncbi-taxonomy_20170222.tar.gz"
+        self.taxdump = Path(taxdump)
         
         # We could include that the class runs using less hardcoded reference to input genomes.
         # Reference to genomes could be via config.ini.
@@ -39,14 +42,14 @@ class Camisim(Base):
         self.dir_datalabel  = self.outdir / self.datalabel
         self.fp_config      = self.outdir / 'configs' / f"{self.datalabel}_config.ini"
 
-        self.success_file = self.dir_datalabel / "success"
+        self.success_file = self.dir_datalabel / ".success"
         
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.11 perl samtools/1.13 camisim/1.3",
         runtime = 360,
-        cores = 10,
-        ram=40,
+        cores = 38,
+        ram=180,
         )
 
     def generate_supporting_files_from_df(self, df_camisim:pd.DataFrame):
@@ -176,7 +179,7 @@ num_communities=1
 # "merged.dmp"
 # "names.dmp"
 #ncbi_taxdump=/services/tools/camisim/1.3/tools/ncbi-taxonomy_20170222.tar.gz
-ncbi_taxdump=/home/projects/dtu_00009/people/henspi/git/Screener/temp/taxdump_fixed.tar.gz
+ncbi_taxdump={self.taxdump}
 
 # the strain simulator for de novo strain creation
 strain_simulation_template=/services/tools/camisim/1.3/scripts/StrainSimulationWrapper/sgEvolver/simulation_dir/
@@ -266,6 +269,10 @@ view=no\
 
         self.n_genomes = len(df_camisim_pre)
         self.log.info(f"Found ({self.n_genomes}) genomes to simulate")
+
+        #Ensure taxdump exists.
+        if not self.taxdump.exists():
+            raise FileExistsError(f"Couldnt locate taxdump: -> {self.taxdump}")
         
         self.generate_supporting_files_from_df(df_camisim_pre)
         self.generate_config()
@@ -275,13 +282,13 @@ view=no\
 
         syscall=f"""\
 #unzip files.
-echo "unzipping {self.fp_genomes_dir}"
-gunzip {self.fp_genomes_dir}/*
+#echo "unzipping {self.fp_genomes_dir}"
+#gunzip {self.fp_genomes_dir}/*.gz
 
 python /services/tools/camisim/1.3/metagenomesimulation.py {self.fp_config}
 
-echo "zipping {self.fp_genomes_dir}"
-gzip {self.fp_genomes_dir}/*
+#echo "zipping {self.fp_genomes_dir}"
+#gzip {self.fp_genomes_dir}/*
 
 #Cleanup generated sample names.
 START=0

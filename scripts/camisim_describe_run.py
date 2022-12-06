@@ -3,25 +3,22 @@ import sys
 import pandas as pd
 from Bio import SeqIO
 import os
+from pathlib import Path
 
 def generate_simulation_overview(dir_dataset:str):
-
-    readsGB = float(os.path.basename(dir_dataset.rstrip("/").replace("GB","").replace('_','.'))) #very brute - could be nicer
-
-    #Get genome sizes
-    fp_combined_input_genomes = "data/simulated_data/input_genomes/combined.fa" #TODO: fix hardcoded?
-    genome_size = {}
-    for record in SeqIO.parse(fp_combined_input_genomes, "fasta"):
-        genome_size[record.name.replace(".","_")] = len(record.seq)
+    dir_dataset = Path(dir_dataset)
+    readsGB = float(dir_dataset.name.replace("GB","").replace("_",".")) #very brute - could be nicer
+    fp_map = dir_dataset/ "internal/genome_locations.tsv"
         
-    #Get mapping between camisim id and ncbi ids
-    fp_map = os.path.join(dir_dataset, "internal/genome_locations.tsv")
     cam2genom = {}
+    genome_size = {}
     for line in open(fp_map, "r"):
         genomeid, fp = line.strip().split("\t")
-        ncbi_id = os.path.basename(fp).rsplit(".",1)[0]
+        ncbi_id = Path(fp).stem
+        record = next(SeqIO.parse(fp, "fasta"))
         cam2genom[genomeid] = ncbi_id
         cam2genom[ncbi_id] = genomeid
+        genome_size[ncbi_id] = record.seq.__len__()
         
     #Run over the samples and calculate the expected coverage from genome size and distribution.
     dfs = []
@@ -42,6 +39,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-d','--directory', required=True, help="Directory holding camisim output.")
+    #parser.add_argument('-f', '--combined_genomes', required=True, help="file containing the combined genomes")
     args = parser.parse_args()
 
     df = generate_simulation_overview(args.directory)

@@ -5,6 +5,7 @@ from qsub_modules.ncbiFetch import NCBIFetch_Assemblies
 from qsub_modules.antismash import Antismash
 from qsub_modules.camisim import Camisim
 from qsub_modules.blastn_pw import PairwiseBlast
+from qsub_modules.preprocess import Preprocessor
 
 import numpy as np
 import configparser
@@ -49,9 +50,8 @@ N_SAMPLES = config.getint("Simulation","SimulatedSamples")
 GENERA = config.get("Simulation", "Genera").strip("\n").split("\n")
 GENERA_CLEANED = [x.replace(" ", "_") for x in GENERA]
 
-
-
-#### Add tasks and dependencies:
+#################### MAIN MATTER BUILD PIPELINE ####################
+# Add tasks and dependencies:
 job_id_map = dict()
 dependencies = []
 
@@ -75,7 +75,7 @@ dependencies.append(
     ('fetch', 'antismash')
 )
 job_id_map["antismash"] = Antismash(
-    fastafile=WD_DATA / "input_genomes/genomes/combined_genomes.fna.gz",
+    fastafile=WD_DATA / "input_genomes/combined_genomes.fna.gz",
     outdir= WD_DATA / "antismash/input_genomes"
 )
 # The job is much larger that initial expected - so lets give it more power
@@ -96,6 +96,7 @@ job_id_map.update(
     label: Camisim(
         fps_genome_overview = genome_overview_fps,
         fp_genomes_dir = WD_DATA / "input_genomes/genomes",
+        taxdump=WD_DATA / "input_genomes/taxdump/ncbi_tax_dump.tar.gz",
         readsGB=gb,
         n_samples=config.getint("Simulation","SimulatedSamples"),
         outdir = WD_DATA / "camisim",
@@ -104,16 +105,38 @@ job_id_map.update(
     }
 )
 
+# add preprocess:
+preprocess_labels   =  ['preprocess.'+label for label in GB_LABELS]
+preprocess_output_directories  =  [WD_DATA / f"preprocessed/{label}" for label in GB_LABELS]
+dependencies.extend([(cam, pre) for cam, pre in zip(camisim_labels, preprocess_labels)])
 
-# add pairwise blast of bgcs.
-dependencies.append(
-    ('antismash', 'blast_pw')
+input_file_sets = [
+  [
+      WD_DATA / "camisim" /label/ f"sample_{sample_n}" / "reads" / "anonymous_reads.fq.gz" 
+      for sample_n in range(N_SAMPLES)
+  ] 
+  for label in GB_LABELS
+]      
+job_id_map.update(
+    {
+    label: Preprocessor(
+        reads_interleaved=input_files,
+        outdir = outdir,
+        loglvl=LOGLEVEL)
+     for label, input_files, outdir in zip(preprocess_labels, input_file_sets, preprocess_output_directories)
+    }
 )
-job_id_map['blast_pw'] = PairwiseBlast(
-    fasta_file = WD_DATA / "antismash/input_genomes/combined_bgc.fa",
-    output_dir=  WD_DATA / "blast_pairwise/input_bgc",
-    loglvl=LOGLEVEL
-)
+
+
+# # add pairwise blast of found bgcs.
+# dependencies.append(
+#     ('antismash', 'blast_pw')
+# )
+# job_id_map['blast_pw'] = PairwiseBlast(
+#     fasta_file = WD_DATA / "antismash/input_genomes/combined_bgc.fa",
+#     output_dir=  WD_DATA / "blast_pairwise/input_bgc",
+#     loglvl=LOGLEVEL
+# )
 
 # # add pw analysis of bgc
 # dependencies.append(
@@ -138,5 +161,12 @@ pipeline_simulate = PipelineBase(
 )
 
 if __name__ == "__main__":
-    pass
-    pipeline_simulate.run_pipeline()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--dry-run", action='store_true')
+    args = parser.parse_args()
+    if args.dry_run:
+        print("Dry-run nothing is added to the que.")
+        pass
+    else:
+        pipeline_simulate.run_pipeline()

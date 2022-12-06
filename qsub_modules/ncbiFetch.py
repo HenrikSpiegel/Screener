@@ -46,6 +46,8 @@ class NCBIFetch_Assemblies(Base):
         self.genera_table_dir   = Path(genera_table_dir)
         self.output_dir         = Path(output_dir)
         self.genomes_dir        = self.output_dir / 'genomes'
+        self.taxdump_dir        = self.output_dir / "taxdump"
+        self.taxdump            = self.taxdump_dir / 'ncbi_tax_dump.tar.gz'
         self.genera_table_fps   = [self.genera_table_dir / (genera.replace(" ","_") +".tsv") for genera in genera_names]
 
         self.assembly_dump_fp   = self.genera_table_dir / "assembly_summary.txt"
@@ -61,7 +63,8 @@ class NCBIFetch_Assemblies(Base):
 
     def preflight(self, check_input=True) -> None:
         self.genera_table_dir.mkdir(parents=True, exist_ok=True)
-        self.genera_table_dir.mkdir(parents=True, exist_ok=True)
+        self.genomes_dir.mkdir(parents=True, exist_ok=True)
+        self.taxdump_dir.mkdir(parents=True, exist_ok=True)
 
         self.genera_tables_exists = all(x.is_file() for x in self.genera_table_fps)
         
@@ -71,6 +74,14 @@ class NCBIFetch_Assemblies(Base):
         # sets mem / cpu based on default qsub args.
         call_assembly_dump = f"""
 wget --directory-prefix {self.genera_table_dir} https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt
+
+#loading NCBI taxdump.
+wget --directory-prefix {self.taxdump_dir} https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
+mkdir {self.taxdump_dir}/NCBI
+tar -xvf {self.taxdump_dir}/taxdump.tar.gz -C {self.taxdump_dir}/NCBI #For some fucking reason the archieve must be wrapped in a NCBI folder for CAMISIM to get going.
+tar -czvf {self.taxdump} {self.taxdump_dir}/NCBI
+rm -rf {self.taxdump_dir}/NCBI
+rm {self.taxdump_dir}/taxdump.tar.gz
 
 genus_extract=("{'" "'.join(self.genera_names)}")
 
