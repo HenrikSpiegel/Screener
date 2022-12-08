@@ -7,12 +7,12 @@ from pathlib import Path
 from qsub_modules.base import Base
 
 class NCBIFetch(Base):
-    def __init__(self, id_list:List[str], outdir: str,log: logging.Logger=None, loglvl = "DEBUG") -> None:
+    def __init__(self, acc_ids:list[str], tax_ids:List[int], outdir: str,log: logging.Logger=None, loglvl = "DEBUG") -> None:
         if log:
             self.add_external_log(log)
         self.loglvl = loglvl
-
-        self.ids = id_list
+        self.acc_ids = acc_ids
+        self.tax_ids = tax_ids
         self.outdir = Path(outdir)
         self.success_file = Path(outdir)/'success'
 
@@ -30,7 +30,8 @@ class NCBIFetch(Base):
         # sets mem / cpu based on default qsub args.
         syscall = f"""\
 python {"scripts/ncbi_fetch.py"} \
---ncbi_ids {" ".join(self.ids)} \
+--acc_id {" ".join(self.acc_ids)} \
+--tax_id {" ".join(self.tax_ids)} \
 --outdir {self.outdir}\
 """
         self._syscall=syscall

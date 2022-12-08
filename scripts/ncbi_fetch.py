@@ -8,6 +8,8 @@ try:
     from typing import List
     import shutil
     import pathlib
+    from pathlib import Path
+    import pandas as pd
 except:
     print("Ensure modules are loaded: suggested (tools, module load anaconda3/2020.07", file=sys.stderr)
 
@@ -16,7 +18,7 @@ def fetch_fasta_from_ncbi(ncbi_id, outdir = None, overwrite: bool=False, verbose
     
     
     entrez_api_url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id={ncbi_id}&rettype=fasta&retmode=text'
-    local_filename = ncbi_id.replace(".","_")+".fa"
+    local_filename = ncbi_id+".fa"#.replace(".","_")+".fa"
     
     if outdir:
         pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
@@ -43,9 +45,9 @@ def fetch_fasta_from_ncbi(ncbi_id, outdir = None, overwrite: bool=False, verbose
                 f.write(chunk)
     return os.path.abspath(local_filehandle)
 
-def fetch_fastas_async(ncbi_ids: List[str], outdir: str=None, overwrite: bool=False, verbose: bool=False) -> List[str]:
+def fetch_fastas(ncbi_ids: List[str], outdir: str=None, overwrite: bool=False, verbose: bool=False) -> List[str]:
     loaded_files = []
-    for ncbi_id in ncbi_ids: #todo: run as async group
+    for ncbi_id in ncbi_ids: 
         filepath = fetch_fasta_from_ncbi(ncbi_id = ncbi_id, outdir = outdir, overwrite=overwrite, verbose=verbose)
         loaded_files.append(filepath)
     return loaded_files
@@ -56,30 +58,25 @@ if __name__ == "__main__":
     import argparse, sys
     ## Front matter - handle input parsing
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ncbi_ids', default=sys.stdin, nargs='+', help="list of ids to be fetched, can be sequence stdin stream")
-    parser.add_argument('--outdir', default=None, help="target for outdir")
+    parser.add_argument('--acc_id', nargs='+', type=str, help="list of ids to be fetched")
+    parser.add_argument('--tax_id', nargs='+', type=int, help="list of tax-ids matching acc_id order")
+    parser.add_argument('--outdir', required=True, type=Path, help="target for outdir")
     parser.add_argument("--overwrite", action="store_true", help="overwrite existing .fasta files")
     parser.add_argument("--verbose", action="store_true", help="Increased logging to stderr")
 
     args = parser.parse_args()
-    #print(args.ncbi_ids.name=="<stdin>")
-    #print([entry.strip() for line in args.ncbi_ids.readlines() for entry in line.split() ])
+
 
     # get ids:
-    if type(args.ncbi_ids) == list:
-        ncbi_ids = args.ncbi_ids
-        # TODO: Add some sort of check?
-    elif args.ncbi_ids.name=="<stdin>":
-        try:
-            ncbi_ids = [entry.strip() for line in args.ncbi_ids.readlines() for entry in line.split()]
-        except:
-            print("Failed to load entries from file. Please arrange as 1 entry per line.", file=sys.stderr)
-            raise
+    if type(args.acc_id) == list:
+        acc_id = args.acc_id
     else:
-        raise KeyError("Failed reading __ncbi_ids")
+        acc_id = [args.acc_id]
+
+    
         
     ## Main matter - run the loading.
-    loaded_files = fetch_fastas_async(ncbi_ids = ncbi_ids,
+    loaded_files = fetch_fastas(ncbi_ids = acc_id,
                                       outdir = args.outdir,
                                       overwrite = args.overwrite,
                                       verbose=args.overwrite)
@@ -89,5 +86,18 @@ if __name__ == "__main__":
         for f in loaded_files:
             with open(f,'rb') as fd:
                 shutil.copyfileobj(fd, wfd)
+
+    acc_to_tax = {a:t for a,t in zip(args.acc_id, args.tax_id)}
+
+    ## write _selected.tsv overview.
+    df_selected = pd.DataFrame([
+        {
+            #"genus": " ".join(Path(file).read_text().split("\n")[0][1::].split(" ")[1:3]),
+            "assembly_accession": Path(file).stem,
+            "taxid": acc_to_tax[Path(file).stem]
+        }
+        for file in loaded_files
+    ])
+    df_selected.to_csv(args.outdir/"ncbi_selected.tsv",sep="\t",index=False)
 
     print(*loaded_files, sep="\n")

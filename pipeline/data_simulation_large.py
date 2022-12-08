@@ -152,7 +152,7 @@ python analysis/01_compare_input_bgc_genera.py\
 """,        
     name='analysis_01',
     loglvl=LOGLEVEL,
-    success_file=WD_DATA / "/results/01_compare_input_bgc_genera/.success"
+    success_file= WD_DATA / "results/01_compare_input_bgc_genera/.success"
 )
 
 ## Clustering of found bgcs.
@@ -160,7 +160,7 @@ dependencies.append(
     ('blast_pw', 'mcl_clustering')
 )
 job_id_map["mcl_clustering"] = MCLClustering(
-    blast_file = WD_DATA / "blast_pairwise/input_bgc/pairwise_table_symmetric.tsv",
+    blast_file = WD_DATA / "blast_pairwise/input_bgc/combined_blast_results.tsv",
     output_dir = WD_DATA / "mcl_clustering",
     loglvl=LOGLEVEL,
 )
@@ -172,30 +172,34 @@ dependencies.append(
 job_id_map["analysis.12"] = AddToQue(
     command=f"""\
 python analysis/12_inputbgc_with_clustering.py\
- --blast {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv
- --genera-table-dir {WD_DATA}/input_genomes
- --mcl-cluster-dir {WD_DATA}/mcl_clustering
+ --blast {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv\
+ --genera-table-dir {WD_DATA}/input_genomes\
+ --mcl-cluster-dir {WD_DATA}/mcl_clustering\
  -o {WD_DATA}/results/12_inputbgc_with_clustering
 """,
-    success_file=WD_DATA / "results/12_inputbgc_with_clustering/.success"
+    success_file= WD_DATA / "results/12_inputbgc_with_clustering/.success"
 )
 
-pipeline_simulate = PipelineBase(
-    config_file=CONFIG_FILE,
-    pipe_name=Path(__file__).stem,
-    dependencies = dependencies,
-    job_map = job_id_map,
-    iteration_sleep=15,
-    max_workers=12,
-    rerun_downstream=True,
-    testing=False
-)
+
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dry-run", action='store_true')
+    parser.add_argument("-t", "--test-print", action='store_true')
     args = parser.parse_args()
+
+    pipeline_simulate = PipelineBase(
+        config_file=CONFIG_FILE,
+        pipe_name=Path(__file__).stem,
+        dependencies = dependencies,
+        job_map = job_id_map,
+        iteration_sleep=15,
+        max_workers=12,
+        rerun_downstream=True,
+        testing=args.test_print
+    )
+
     if args.dry_run:
         print("Dry-run nothing is added to the que.")
         pass

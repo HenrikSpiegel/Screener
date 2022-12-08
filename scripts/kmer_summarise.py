@@ -56,9 +56,9 @@ if __name__ == "__main__":
     parser.add_argument("--directory",  required=True, help="Directory holding the count files from 'jellyfish query'.")
     parser.add_argument("--file_fuzzy", default="*.counted", help="Fuzzy filename for counted files.['*.counted']")
 
-    parser.add_argument("-k", "--kmerlength", type=int, help="Overwrite default settings given in config/config")
-    parser.add_argument("-l", "--readlength", type=float, help="Average Readlength of trimmed reads, Overwrite default settings given in config/config")
-    parser.add_argument("-e", "--error-rate", type=float, help="Overwrite default settings given in config/config")
+    parser.add_argument("-k", "--kmerlength", required=True, type=int, help="Overwrite default settings given in config/config")
+    parser.add_argument("-l", "--readlength", required=True, type=float, help="Average Readlength of trimmed reads, Overwrite default settings given in config/config")
+    parser.add_argument("-e", "--error-rate", required=True, type=float, help="Overwrite default settings given in config/config")
 
     parser.add_argument("-o", help="output file [--directory / kmer_summation.tsv]")
 
@@ -72,13 +72,13 @@ if __name__ == "__main__":
         print("kmer_summarise.py: All 'Depth median' == 0", file=sys.stderr)
         #raise RuntimeError("kmer_summarise.py: All 'Depth median' == 0")
 
-    config = configparser.ConfigParser()
-    config.read("config/project_config.ini")
+    #config = configparser.ConfigParser()
+    #config.read("config/project_config.ini")
 
 
-    kmerlength  = args.kmerlength   or config.getint("KmerQuantification", "KmerLength")
-    read_length = args.readlength   or config.getint("KmerQuantification", "AverageReadLength")
-    error_rate  = args.error_rate   or config.getfloat("KmerQuantification", "PerBaseErrorRate")
+    kmerlength  = args.kmerlength   #or config.getint("KmerQuantification", "KmerLength")
+    read_length = args.readlength   #or config.getint("KmerQuantification", "AverageReadLength")
+    error_rate  = args.error_rate   #or config.getfloat("KmerQuantification", "PerBaseErrorRate")
 
     df["median_depth_error_corrected"]         = error_correction(df["depth_median"], k=kmerlength, error_rate=error_rate)
     df["median_depth_error_edgecorrected"]    = edgeloss_correction(df["median_depth_error_corrected"], k=kmerlength, L=read_length)

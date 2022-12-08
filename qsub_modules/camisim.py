@@ -31,6 +31,8 @@ class Camisim(Base):
         self.seed = seed
         if not taxdump:
             taxdump="/services/tools/camisim/1.3/tools/ncbi-taxonomy_20170222.tar.gz"
+            self.log.warning("Using CAMISIM packaged dump - may be outdated -> "+taxdump)
+            
         self.taxdump = Path(taxdump)
         
         # We could include that the class runs using less hardcoded reference to input genomes.
@@ -246,7 +248,7 @@ view=no\
         
         df_assembly_overviews.rename(columns= {'taxid':'NCBI_ID'}, inplace=True)
         given_columns = set(df_assembly_overviews.columns)
-        required_columns = {"assembly_accession", "NCBI_ID"}
+        required_columns = {"genus", "assembly_accession", "NCBI_ID"} #we could have chosen some softer names but this should work. NCBI_ID is taxid
         if (required_columns - given_columns) != set():
            raise RuntimeError(f"df_genome_specifications must contain: {required_columns}. Input missing -> {required_columns - given_columns}")
         df_camisim_pre =  df_assembly_overviews.loc[:,["genus", "assembly_accession", "NCBI_ID"]]

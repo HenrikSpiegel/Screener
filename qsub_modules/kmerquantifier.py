@@ -12,6 +12,7 @@ class QuantifierKmer(Base):
             fp_catalogue : Union[Path, List[Path]], 
             output_dir : Path,
             kmer_size = 21,
+            expected_read_error=0.015,
             log: logging.Logger=None,
             loglvl = "DEBUG",
             ) -> None:
@@ -30,6 +31,7 @@ class QuantifierKmer(Base):
         self.success_file = output_dir / "success"
 
         self.kmer_size = kmer_size
+        self.expected_read_error = expected_read_error
 
         self.fp_countdir = output_dir/"counts"
         self.fp_countdir.mkdir(parents=True, exist_ok=True)
@@ -114,7 +116,14 @@ done < "${{in}}"
 average_readlength=$(python scripts/average_readlength.py -f {" ".join(x.as_posix() for x in self.read_files)})
 echo "Average readlength: $average_readlength"
 
-python scripts/kmer_summarise.py --directory {self.fp_countdir} -o {self.output_dir / "kmer_summation.tsv"} -l $average_readlength
+python scripts/kmer_summarise.py\
+ --directory {self.fp_countdir}\
+ -o {self.output_dir / "kmer_summation.tsv"}\
+ -l $average_readlength\
+ -k {self.kmer_size}\
+ -e {self.expected_read_error}
+
+
 
 """
         self._syscall = syscall

@@ -113,7 +113,7 @@ if __name__ == '__main__':
     df_count_combined = df_count_combined[df_count_combined["dataset"] == "0_5GB"]
     outdir.mkdir(parents=True, exist_ok=True)
 
-    for catalogue in (pbar := tqdm(catalogues)):
+    for catalogue in (pbar := tqdm(catalogues, mininterval=15)):
         pbar.set_description(f"[{catalogue}]: Processing data.")
         df_gene_i = df_genes_sets.loc[df_genes_sets['catalogue_name']==catalogue,:]
         df_i = df_count_combined.loc[df_count_combined['catalogue_name']==catalogue, ['kmer', 'dataset_sample', 'RE']]

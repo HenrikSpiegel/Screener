@@ -11,7 +11,13 @@ args = parser.parse_args()
 outdir = Path(args.o)
 outdir.mkdir(parents=True, exist_ok=True)
 
-path_glob = Path().glob(args.fuzzy_path)
+fuzz = args.fuzzy_path
+if fuzz.startswith("/"): #absolute Path().glob cannot start from absolute paths.
+    path_glob = Path("/").glob(fuzz[1::])
+else:
+    path_glob = Path().glob(fuzz)
+
+
 grouped_dict = dict()
 for path in path_glob:
     cat_name = path.stem
@@ -36,12 +42,15 @@ for cat_name, cat_count_files in grouped_dict.items():
     df_cat = pd.concat(dfs, axis=1)
 
     overlapping_kmers = set(df_cat.index).intersection(seen_kmers)
+
     if overlapping_kmers:
         raise RuntimeError(f"ERROR: {cat_name} contains kmers previously seen: {overlapping_kmers}")
 
 
     all_counts.append(df_cat)
     df_cat.to_csv(outdir/(cat_name+".tsv"), sep="\t")
+
+    
 df_count_all = pd.concat(all_counts, axis=0)
 
 

@@ -89,6 +89,7 @@ if __name__ == "__main__":
             for line_num, cluster_line in enumerate(cluster_result.read_text().split("\n"))
             for cluster_member in cluster_line.split("\t")
         }
+        print(member_to_cluster)
 
         out_fig = generate_heatmap_w_clustering(
             fp_pw_blast       = fp_pw_blast, 
