@@ -93,6 +93,18 @@ job_id_map.update(
     }
 )
 
+## camisim summary df.
+dependencies.append((set(camisim_labels), 'camisim.collect'))
+job_id_map["camisim.collect"] = AddToQue(
+    command=f"""\
+python scripts/camisim_combine_descriptions.py\
+ --camisim-overview-files {WD_DATA}/camisim/*GB/simulation_overview.csv\
+ --camisim-config {WD_DATA /"camisim/configs"/ (GB_LABELS[0]+"_config.ini")} \
+ --outfile {WD_DATA}/camisim/simulation_overview_full.tsv\
+""",
+    name="camisim.collect",
+    success_file=WD_DATA / "camisim/.success_collect"
+)
 
 # add preprocess:
 preprocess_labels   =  ['preprocess.'+label for label in GB_LABELS]
@@ -372,38 +384,60 @@ new_qsub_requirements = job_id_map['MAGinator.extract'].qsub_requirements.copy()
 new_qsub_requirements.update({'modules': 'tools gcc/7.4.0 intel/perflibs/2020_update4 R/4.0.0'})
 job_id_map['MAGinator.extract'].qsub_requirements = new_qsub_requirements
 
-# # Run analysis on MAGinator output.
-# dir_ana_09 = WD_DATA / "results/09_MAG_kmer_location"
-# dir_ana_09_pileup = dir_ana_09/"pileup"
-# dir_ana_09_pileup.mkdir(parents=True, exist_ok=True)
-# dependencies.append(
-#     ('MAGinator.extract', 'analysis_09')
-# )
-# job_id_map['analysis_09'] = AddToQue(
-#     command=f"""\
-# #Run pileup
-# module load samtools/1.14
-# for ID_SAMPLE in $(cut -f1 {WD_DATA}/camisim/id_map.tsv)
-# do
-#     echo $ID_SAMPLE
-#     samtools mpileup --min-MQ 0 --min-BQ 0 -a "{WD_DATA}/camisim/0_5GB/sample_0/bam/$ID_SAMPLE.bam"\
-#      | awk '{{print $1"\t"$2"\t"$4}}' > "{dir_ana_09_pileup}/$ID_SAMPLE.tsv"
-# done
+### MAG analysis
 
-# python analysis/09_MAG_kmer_location.py\
-#     --catalogues {WD_DATA}/catalogues/catalogues\
-#     --family_dump {WD_DATA}/catalogues/family_dump.json\
-#     --mag-flat {WD_DATA}/MAGinator/screened_flat\
-#     --antismash {WD_DATA}/antismash/input_genomes\
-#     --simulation-overview {WD_DATA}/camisim/0_5GB/simulation_overview.csv\
-#     --count-matrices {WD_DATA}/kmer_quantification/count_matrices\
-#     --camisim-id-map {WD_DATA}/camisim/id_map.tsv\
-#     --pileup-dir {dir_ana_09_pileup}\
-#     -o {dir_ana_09}\
-# """,
-#     success_file=dir_ana_09/".success_extract",
-#     loglvl=LOGLEVEL
-# )
+dir_ana_08 = WD_DATA / "results/09_MAG_kmer_location"
+dependencies.append(
+    ({"camisim.collect",'MAGinator.extract'}, 'analysis.08')
+)
+job_id_map['analysis.08'] = AddToQue(
+    command=f"""\
+python analysis/08_mag_diagnostics.py\
+ --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
+ --family-json {WD_DATA}/catalogues/family_dump.json\
+ --count-mats {WD_DATA}/kmer_quantification/count_matrices\
+ --mag-flat {WD_DATA}/MAGinator/screened_flat\
+ -o {dir_ana_08}
+""",
+    name="analysis.08",
+    success_file=dir_ana_08/".succes"
+)
+# --camisim-config {WD_DATA}/camisim/configs/0_5GB_config.ini\
+# --fuzzy-simulation '{WD_DATA}/camisim/*GB/simulation_overview.csv'\
+
+# Run analysis on MAGinator output.
+dir_ana_09 = WD_DATA / "results/09_mag_kmer_location"
+dir_ana_09_pileup = dir_ana_09/"pileup"
+dir_ana_09_pileup.mkdir(parents=True, exist_ok=True)
+dependencies.append(
+    ({"camisim.collect", 'MAGinator.extract'}, 'analysis_09')
+)
+job_id_map['analysis_09'] = AddToQue(
+    command=f"""\
+#Run pileup
+module load samtools/1.14
+for ID_SAMPLE in $(cut -f1 {WD_DATA}/camisim/id_map.tsv)
+do
+    echo $ID_SAMPLE
+    samtools mpileup --min-MQ 0 --min-BQ 0 -a "{WD_DATA}/camisim/0_5GB/sample_0/bam/$ID_SAMPLE.bam"\
+     | awk '{{print $1","$2","$4}}' > "{dir_ana_09_pileup}/$ID_SAMPLE.csv"
+done
+module unload samtools/1.14
+
+python analysis/09_MAG_kmer_location.py\
+    --catalogues {WD_DATA}/catalogues/catalogues\
+    --family_dump {WD_DATA}/catalogues/family_dump.json\
+    --mag-flat {WD_DATA}/MAGinator/screened_flat\
+    --antismash {WD_DATA}/antismash/input_genomes\
+    --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
+    --count-matrices {WD_DATA}/kmer_quantification/count_matrices\
+    --camisim-id-map {WD_DATA}/camisim/id_map.tsv\
+    --pileup-dir {dir_ana_09_pileup}\
+    -o {dir_ana_09}\
+""",
+    success_file=dir_ana_09/".success_extract",
+    loglvl=LOGLEVEL
+)
 
 
 
@@ -415,7 +449,7 @@ pipeline_simulate = PipelineBase(
     iteration_sleep=15,
     max_workers=12,
     rerun_downstream=True,
-    testing=False
+    testing=True
 )
 
 if __name__ == "__main__":

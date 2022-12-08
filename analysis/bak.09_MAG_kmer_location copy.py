@@ -54,11 +54,11 @@ def collect_record_dict(fp_antismash_json: Path, fp_id_map: Path, dir_pileups:Pa
     dict_pileup_map = dict()
     for line in fp_id_map.read_text().strip().split("\n"):
         ref, id_ = line.split("\t")
-        dict_pileup_map[Path(id_).stem.replace("_1", ".1")] = dir_pileups/ (ref+".csv")
+        dict_pileup_map[Path(id_).stem.replace("_1", ".1")] = dir_pileups/ (ref+".tsv")
     
     for genome in (pbar := tqdm(record_dict.keys()) ):
         pbar.set_description(f"[Appending pileup coverage] : {genome}")
-        df_pileup = pd.read_csv(dict_pileup_map[genome], sep=",", names=["id","position","coverage"])
+        df_pileup = pd.read_csv(dict_pileup_map[genome], sep="\t", names=["id","position","coverage"])
         for region in record_dict[genome].keys():
             region_start = record_dict[genome][region]["start"]
             region_end   = record_dict[genome][region]["end"]
@@ -116,7 +116,7 @@ def generate_catalogue_coverage_fig(
         x_order:Literal['position','coverage'] = 'position'
 ):
 
-    df_indexed_geneset = df_indexed_geneset.where(pd.notnull(df_indexed_geneset), None)
+    
     record = record_dict[genome][region]
     
     fig = make_subplots(
@@ -250,37 +250,34 @@ if __name__ == "__main__":
     outdir = Path(args.o)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    dir_catalogues  = Path("data/simulated_data_init/catalogues/catalogues/")# args.catalogues       #Path("../data/simulated_data/catalogues/catalogues/")
-    dir_mag_flat    = Path("data/simulated_data_init/MAGinator/screened_flat/") #args.mag_flat         #Path("../data/simulated_data/MAGinator/screened_flat/")
-    dir_antismash   = Path("data/simulated_data_init/antismash/input_genomes/") #args.antismash        #Path("../data/simulated_data/antismash/input_genomes/")
-    fp_catalogue_groups =  Path("data/simulated_data_init/catalogues/family_dump.json")#args.family_dump                 #Path("../data/simulated_data/catalogues/family_dump.json")
-    fp_id_map = Path("data/simulated_data_init/camisim/id_map.tsv") #args.camisim_id_map     #Path("../data/simulated_data/camisim/id_map.tsv")
-    dir_pileups = Path("data/simulated_data_init/results/09_mag_kmer_location/pileup") #args.pileup_dir # Path("../experiments/visualize_catalogue/pileups/") #TODO: This could be a place for looping <--
+    dir_catalogues  = args.catalogues       #Path("../data/simulated_data/catalogues/catalogues/")
+    dir_mag_flat    = args.mag_flat         #Path("../data/simulated_data/MAGinator/screened_flat/")
+    dir_antismash   = args.antismash        #Path("../data/simulated_data/antismash/input_genomes/")
+    fp_catalogue_groups =  args.family_dump                 #Path("../data/simulated_data/catalogues/family_dump.json")
     catalogue_groupings = json.loads(fp_catalogue_groups.read_bytes())
     catalogue_belongs = {member: group for group, members in catalogue_groupings.items() for member in members}
-    print(catalogue_belongs)
 
     # Getting expected values:
-    fp_simulation_oveview = Path("data/simulated_data_init/camisim/simulation_overview_full.tsv") #args.simulation_overview
-    dir_count_matrices = Path("data/simulated_data_init/kmer_quantification/count_matrices_corrected") #args.count_matrices ##Path("../data/simulated_data/kmer_quantification/count_matrices/")
+    fp_simulation_oveview = args.simulation_overview
+    dir_count_matrices = args.count_matrices ##Path("../data/simulated_data/kmer_quantification/count_matrices/")
 
 
-    df_sim = pd.read_csv(fp_simulation_oveview, sep="\t")
-    df_catalogue_errors = get_catalogue_errors(df_sim, dir_count_matrices, catalogue_groupings )
+    df_simulation = pd.read_csv(fp_simulation_oveview, sep="\t")
+    df_catalogue_errors = get_catalogue_errors(df_simulation, dir_count_matrices, catalogue_groupings)
     df_average_expected = df_catalogue_errors.groupby("catalogue_name")["expected_average_coverage"].agg("mean").reset_index()
     # NOTE: We are running only on one sample here!
     #df_count_combined
     df_catalogue_errors_agg = df_catalogue_errors.query("dataset=='0_5GB' & sample=='sample_0'").groupby(['catalogue_name','kmer'])["RAE"].agg(["mean","std"]).add_suffix("_RAE").reset_index()
-    df_catalogue_errors_agg.to_csv(outdir/"cat_err_agg.tsv", sep="\t")
+
     fp_antismash_json = dir_antismash/ "combined.json"
 
-    
+    fp_id_map = args.camisim_id_map     #Path("../data/simulated_data/camisim/id_map.tsv")
 
-    
+    dir_pileups = args.pileup_dir # Path("../experiments/visualize_catalogue/pileups/") #TODO: This could be a place for looping <--
     record_dict = collect_record_dict(fp_antismash_json, fp_id_map, dir_pileups)
 
     regions = [(g, r) for g in record_dict.keys() for r in record_dict[g].keys()]
-    for genome, region in (pbar := tqdm(regions)):
+    for genome, region in (pbar := tqdm(regions,mininterval=15)):
 
         pbar.set_description(f"[{genome}.{region}] Generating data")
         catalogue_name = catalogue_belongs[f"{genome}.{region}"]
@@ -302,7 +299,6 @@ if __name__ == "__main__":
             df_geneset_indexed,
             df_catalogue_errors_i[['kmer','position', 'geneset']]
         ])
-        df_geneset_indexed_expanded.dropna(inplace=True, how="any")
         pbar.set_description(f"[{genome}.{region}] Generating plots")
         for fig_type in ["position", "coverage"]:
             fig = generate_catalogue_coverage_fig(
@@ -313,8 +309,6 @@ if __name__ == "__main__":
                     antismash_dir=dir_antismash,
                     x_order = fig_type
             )
-            #(outdir/"fig_data.txt").write_text(json.dumps(fig.__dict__))
             fig.update_layout(height=600)
-            fp_fig = outdir / f"{genome}.{region}_{fig_type}.png"
-            df_geneset_indexed_expanded.to_csv(outdir/"df.csv", sep="\t", index=False)
+            fp_fig = fp_fig_position = outdir / f"{genome}.{region}_{fig_type}.png"
             fig.write_image(fp_fig, height=600, width=1000)

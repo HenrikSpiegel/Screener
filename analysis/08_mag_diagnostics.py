@@ -10,21 +10,26 @@ import plotly.figure_factory as ff
 
 #from scripts.kmer_summarise import error_correction, edgeloss_correction
 
-def error_correction(values: Sequence[float], k:int=21, error_rate:float=0.03):
-    correction_value = (1-error_rate)**k
-    corrected_value = [x/correction_value for x in values]
-    return corrected_value
+# def error_correction(values: Sequence[float], k:int=21, error_rate:float=0.03):
+#     correction_value = (1-error_rate)**k
+#     corrected_value = [x/correction_value for x in values]
+#     return corrected_value
 
 
-def edgeloss_correction(values: Sequence[float], k:int=21, L:int=150):
-    correction_value = 1 - ((k-1)/L)
-    corrected_value = [x/correction_value for x in values]
-    return corrected_value
+# def edgeloss_correction(values: Sequence[float], k:int=21, L:int=150):
+#     correction_value = 1 - ((k-1)/L)
+#     corrected_value = [x/correction_value for x in values]
+#     return corrected_value
 
 
-def get_simulation_overview(file_simulation_overview_fuzzy="data/simulated_data/camisim/*GB/simulation_overview.csv"):
+def get_simulation_overview(file_simulation_overview_fuzzy, camisim_config_file):
     dfs = []
-    for summary_file in Path().glob(file_simulation_overview_fuzzy):
+    if file_simulation_overview_fuzzy.startswith("/"):
+        globber = Path("/").glob(file_simulation_overview_fuzzy[1::])
+    else:
+        globber = Path().glob(file_simulation_overview_fuzzy)
+
+    for summary_file in globber:
         df = pd.read_csv(summary_file, sep=",")
         df["dataset"] = summary_file.parent.name
         dfs.append(df)
@@ -33,7 +38,7 @@ def get_simulation_overview(file_simulation_overview_fuzzy="data/simulated_data/
     #Grab config data:
     camisim_config = configparser.ConfigParser()
     #Here we assume only size (ie. readdepth) changes.
-    config_file = Path("data/simulated_data/camisim/configs/").glob("*_config.ini").__next__()
+    config_file = Path(camisim_config_file)
     camisim_config.read(config_file)
     df_simulation["err_type"]=camisim_config.get("ReadSimulator","type")
     try:
@@ -45,50 +50,52 @@ def get_simulation_overview(file_simulation_overview_fuzzy="data/simulated_data/
     return df_simulation
 
 if __name__ == '__main__':
-    
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--simulation-overview", type=Path, required=True)
+    parser.add_argument("--family-json", type=Path, required=True)
+    parser.add_argument("--count-mats", type=Path, required=True)
+    parser.add_argument("--mag-flat", type=Path, required=True)
+    parser.add_argument("-o", type=Path, required=True)
+    args = parser.parse_args()
+
+
+    fp_simulation_overview = args.simulation_overview   #"data/simulated_data_init/camisim/*GB/simulation_overview.csv"
+    bgc_family_dump = args.family_json          #Path("data/simulated_data_init/catalogues/family_dump.json")
+    dir_count_matrices = args.count_mats        #Path("data/simulated_data_init/kmer_quantification/count_matrices/")
+    dir_mag_flat = args.mag_flat        #Path("data/simulated_data_init/MAGinator/screened_flat/")
+
+    outdir = args.o #("data/simulated_data_init/results/08_mag_diagnostics")
+
     # Getting expected values:
-    df_simulation = get_simulation_overview("data/simulated_data/camisim/*GB/simulation_overview.csv")
+    df_simulation = pd.read_csv(fp_simulation_overview, sep="\t")
     df_simulation["readsGB"]  = df_simulation.dataset.str.replace("_",".").str.rstrip("GB").astype(float)
     
-    file_catalogue_grouping = Path("data/simulated_data/catalogues/family_dump.json")
+    file_catalogue_grouping = Path(bgc_family_dump)
     catalogue_groupings     = json.loads(file_catalogue_grouping.read_text())
 
     by_sample_grouped = df_simulation.groupby(["dataset", "sample"])
     rows = []
     for name, df_g in by_sample_grouped:
         group_rows = [
-            name + (cat, df_g.loc[df_g.ncbi.isin([member.rsplit(".",1)[0].replace(".","_") for member in cat_members]),'expected_average_coverage'].sum())
+            name + (cat, df_g.loc[df_g.ncbi.isin([member.rsplit(".",1)[0] for member in cat_members]),'expected_average_coverage'].sum())
             for cat, cat_members in catalogue_groupings.items()]
         rows.extend(group_rows)
     df_catalogue_expect = pd.DataFrame(rows, columns = ["dataset", "sample","catalogue_name", "expected_average_coverage"])
-    
+    df_catalogue_expect.query("dataset == '0_005GB'").to_csv(outdir/"sim.tsv", sep="\t")
     # Collecting counts:
-    dir_count_matrices = Path("data/simulated_data/kmer_quantification/count_matrices/")
+    dir_count_matrices = Path(dir_count_matrices)
     catalouge_count_files = [file for file in dir_count_matrices.glob("*.tsv") if not file.stem=="counts_all"]
 
     df_count = pd.concat(
         pd.read_csv(file, sep="\t", index_col=0)\
             .reset_index()\
             .rename(columns={'index':'kmer'})\
-            .melt(id_vars=["kmer"], var_name='dataset_sample', value_name='count')\
+            .melt(id_vars=["kmer"], var_name='dataset_sample', value_name='count_corrected')\
             .assign(catalogue_name = file.stem)
         for file in catalouge_count_files
     )
     df_count[["dataset","sample"]] = df_count['dataset_sample'].str.split(".", expand=True)
-
-    # count correction
-
-    def combined_correction(values, k, L, error_rate):
-        err_corrected = error_correction(values=values, k=k, error_rate=error_rate)
-        
-        return edgeloss_correction(
-            values=err_corrected,
-            k=k, L=L
-        )
-    k = 21 #load from config ...
-    L = 148.5
-    error_rate = 0.015
-    df_count["count_corrected"] = combined_correction(df_count["count"], k, L, error_rate)
 
 
     # Merge expected and conut and add error values
@@ -96,9 +103,8 @@ if __name__ == '__main__':
     df_count_combined["RE"] = (df_count_combined['count_corrected'] - df_count_combined['expected_average_coverage']) / df_count_combined['expected_average_coverage']
 
    
-
     # collect MAGinator gene sets
-    files_mag_gene_sets = Path("data/simulated_data/MAGinator/screened_flat/").glob("*_kmers.csv")
+    files_mag_gene_sets = Path(dir_mag_flat).glob("*_kmers.csv")
     df_genes_sets = pd.concat(
         pd.read_csv(file)\
             .assign(catalogue_name = file.stem.rsplit("_kmers",1)[0])
@@ -107,48 +113,79 @@ if __name__ == '__main__':
 
     # Generate visualizations
     catalogues = sorted(df_genes_sets.loc[:,'catalogue_name'].drop_duplicates())
-    outdir = Path("results") / (Path(__file__).stem+"_05GB")
-    #TODO: TEMP!!!
-    print("WARNING: TEMPORARY extractions", file=sys.stderr)
-    df_count_combined = df_count_combined[df_count_combined["dataset"] == "0_5GB"]
-    outdir.mkdir(parents=True, exist_ok=True)
+    
+    total_view = df_count_combined[["catalogue_name", "dataset"]].drop_duplicates().__len__()
 
-    for catalogue in (pbar := tqdm(catalogues, mininterval=15)):
-        pbar.set_description(f"[{catalogue}]: Processing data.")
-        df_gene_i = df_genes_sets.loc[df_genes_sets['catalogue_name']==catalogue,:]
-        df_i = df_count_combined.loc[df_count_combined['catalogue_name']==catalogue, ['kmer', 'dataset_sample', 'RE']]
-        
-        hist_data = [
-            df_i.loc[:,'RE'].values,
-            df_i.loc[df_i['kmer'].isin(df_gene_i['init']),'RE'].values,
-            df_i.loc[df_i['kmer'].isin(df_gene_i['best']),'RE'].values
-        ]
+    pbar = tqdm(total =total_view, desc="[Generating plots for each dataset and catalogue]", mininterval=30)
+    for name_data, df_data in df_count_combined.groupby("dataset"):
+        outdir_sub = outdir/name_data
+        outdir_sub.mkdir(parents=True, exist_ok=True)
+        for catalogue in catalogues:
+            df_gene_i = df_genes_sets.loc[df_genes_sets['catalogue_name']==catalogue,:]
+            df_i = df_data.loc[df_data['catalogue_name']==catalogue, ['kmer', 'dataset_sample', 'RE', "count_corrected", "expected_average_coverage"]]
+            hist_data = [
+                df_i.loc[:,'RE'].values,
+                df_i.loc[df_i['kmer'].isin(df_gene_i['init']),'RE'].values,
+                df_i.loc[df_i['kmer'].isin(df_gene_i['best']),'RE'].values
+            ]
 
-        MRAE = [np.mean(np.abs(x)) for x in hist_data]
+            MRAE = [np.mean(np.abs(x)) for x in hist_data]
 
-        group_labels = [
-            f'all_{len(df_i.kmer.drop_duplicates())}',
-            'MAG_init',
-            'MAG_best'
-        ]
+            group_labels = [
+                f'all_{len(df_i.kmer.drop_duplicates())}',
+                'MAG_init',
+                'MAG_best'
+            ]
 
-        mse_string = "MRAE: "+ " ".join([f"{label}: {value:0.1f}" for label, value in zip(group_labels, MRAE) ])
+            mse_string = "MRAE: "+ " ".join([f"{label}: {value:0.1f}" for label, value in zip(group_labels, MRAE) ])
 
-        pbar.set_description(f"[{catalogue}]: Processing plot.")
-        # Create distplot with custom bin_size
-        fig = ff.create_distplot(hist_data, group_labels, bin_size=.1,)
-        fig.update_layout(
-            title=f"Histogram with KDE curve showing distribution of relative errors for catelogue groupings.<br><sup>{catalogue} - {mse_string}",
-            yaxis_title="Probability Density",
-            xaxis_title="Relative Error",
-            yaxis1=dict(range=[0,2])
-            )
-        fig.update_traces(opacity=0.75)
+            # Create distplot with custom bin_size
+            fig = ff.create_distplot(hist_data, group_labels, bin_size=.1,)
+            fig.update_layout(
+                title=f"Histogram with KDE curve showing distribution of relative errors for catelogue groupings.<br><sup>Data: {name_data}:{catalogue} - {mse_string}",
+                yaxis_title="Probability Density",
+                xaxis_title="Relative Error",
+                yaxis1=dict(range=[0,5])
+                )
+            fig.update_traces(opacity=0.75)
 
-        if catalogue == "NZ_CP053893.1.region002":
-            fig.update_xaxes(range=[-1,25])
-        else:
-            fig.update_xaxes(range=[-1,5])
+            if catalogue == "NZ_CP053893.1.region002":
+                fig.update_xaxes(range=[-1,25])
+            else:
+                fig.update_xaxes(range=[-1,5])
 
-        file_image = outdir / (catalogue+".png")
-        fig.write_image(file_image, width=1000, height=800)
+            file_image = outdir_sub / (catalogue+".png")
+            fig.write_image(file_image, width=1000, height=800)
+            pbar.update(1)
+    pbar.close()
+
+    #do one full:
+    df_i = df_count_combined
+    hist_data = [
+                df_i.loc[:,'RE'].values,
+                df_i.loc[df_i['kmer'].isin(df_gene_i['init']),'RE'].values,
+                df_i.loc[df_i['kmer'].isin(df_gene_i['best']),'RE'].values
+            ]
+
+    MRAE = [np.mean(np.abs(x)) for x in hist_data]
+
+    group_labels = [
+        f'all_{len(df_i.kmer.drop_duplicates())}',
+        'MAG_init',
+        'MAG_best'
+    ]
+
+    mse_string = "MRAE: "+ " ".join([f"{label}: {value:0.1f}" for label, value in zip(group_labels, MRAE) ])
+    # Create distplot with custom bin_size
+    fig = ff.create_distplot(hist_data, group_labels, bin_size=.1,)
+    fig.update_layout(
+        title=f"Histogram with KDE curve showing distribution of relative errors across all datapoints<br><sup>{mse_string}",
+        yaxis_title="Probability Density",
+        xaxis_title="Relative Error",
+        yaxis1=dict(range=[0,5])
+        )
+    fig.update_traces(opacity=0.75)
+    fig.update_xaxes(range=[-1,25])
+
+    file_image = outdir / "accross_all.png"
+    fig.write_image(file_image, width=1000, height=800)
