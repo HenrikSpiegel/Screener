@@ -51,6 +51,9 @@ mcl {self.output_dir / "blast_result.mci"} -I 1.4  -use-tab {self.output_dir / "
 mcl {self.output_dir / "blast_result.mci"} -I 2  -use-tab {self.output_dir / "blast_result.tab"} -odir {self.output_dir} -te {self.qsub_requirements["cores"]-1}
 mcl {self.output_dir / "blast_result.mci"} -I 4  -use-tab {self.output_dir / "blast_result.tab"} -odir {self.output_dir} -te {self.qsub_requirements["cores"]-1}
 mcl {self.output_dir / "blast_result.mci"} -I 6  -use-tab {self.output_dir / "blast_result.tab"} -odir {self.output_dir} -te {self.qsub_requirements["cores"]-1}
+
+# collect-to-jsons.
+python scripts/mcl_conv_json.py --mcl-files {self.output_dir}/*mci.I*
 """
 
 if __name__ == "__main__":

@@ -83,8 +83,8 @@ class QuantifierKmer(Base):
 
             
             if not all(os.path.isfile(file) for file in self.read_files):
-                self.log.error("Reads file not found -> "+self.read_files)
-                raise IOError("Reads file not found -> "+self.read_files)
+                self.log.error(f"Reads file not found -> {self.read_files}")
+                raise IOError(f"Reads file not found -> {self.read_files}")
             self.log.debug("Found all input files")
 
     def generate_syscall(self) -> None:
@@ -112,16 +112,16 @@ do
 	$call > {self.fp_countdir}/$name.counted
 done < "${{in}}"
 
-# Summarise:
-average_readlength=$(python scripts/average_readlength.py -f {" ".join(x.as_posix() for x in self.read_files)})
-echo "Average readlength: $average_readlength"
+## Summarise:
+#average_readlength=$(python scripts/average_readlength.py -f {" ".join(x.as_posix() for x in self.read_files)})
+#echo "Average readlength: $average_readlength"
 
-python scripts/kmer_summarise.py\
- --directory {self.fp_countdir}\
- -o {self.output_dir / "kmer_summation.tsv"}\
- -l $average_readlength\
- -k {self.kmer_size}\
- -e {self.expected_read_error}
+#python scripts/kmer_summarise.py\
+# --directory {self.fp_countdir}\
+# -o {self.output_dir / "kmer_summation.tsv"}\
+# -l $average_readlength\
+# -k {self.kmer_size}\
+# -e {self.expected_read_error}
 
 
 

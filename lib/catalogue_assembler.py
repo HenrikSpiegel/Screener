@@ -377,7 +377,11 @@ if __name__ == "__main__":
     meta_dir        = output_dir /"metafiles"
     log_name        = args.log or "SimulateData"
 
-    ca = CatalogueAssembler(log="SimulateData",kmerlength=args.kmersize, loglvl=args.loglvl)
+
+    for outdir in [output_dir, catalogue_dir, meta_dir]:
+        outdir.mkdir(parents=True, exist_ok=True)
+
+    ca = CatalogueAssembler(log=args.log, kmerlength=args.kmersize, loglvl=args.loglvl)
     ca.load_bgcs_from_file(file_fasta)
     ca.use_kmers_all()
     ca.generate_kmers()

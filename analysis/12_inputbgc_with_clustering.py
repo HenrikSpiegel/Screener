@@ -2,6 +2,8 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 import argparse
+import json
+import re
 
 def generate_heatmap_w_clustering(fp_pw_blast:Path, genera_tables_dir:Path, member_to_cluster:dict):
 
@@ -77,25 +79,34 @@ if __name__ == "__main__":
 
     fp_pw_blast = args.blast    #Path("../data/simulated_data_large/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv")
     genera_tables_dir = args.genera_table_dir   #Path("../data/simulated_data_large/input_genomes/genera_tables")
-    cluster_results = Path(args.mcl_cluster_dir).glob("*mci.I*")   #Path("../data/simulated_data_large/mcl_clustering/").glob("*mci.I*")
+    cluster_jsons = Path(args.mcl_cluster_dir).glob("*mci.I*.json")   #Path("../data/simulated_data_large/mcl_clustering/").glob("*mci.I*")
+
+    regex_mcl_name = re.compile(r"\.(mci\.I\d+)")
 
     outdir = args.o
     outdir.mkdir(parents=True, exist_ok=True)
 
-    for cluster_result in cluster_results:
+    for cluster_json in cluster_jsons:
 
-        member_to_cluster ={
-            cluster_member:f"cluster_{line_num:02d}"
-            for line_num, cluster_line in enumerate(cluster_result.read_text().split("\n"))
-            for cluster_member in cluster_line.split("\t")
+        cluster_to_members = json.loads(cluster_json.read_text())
+        member_to_cluster = {
+            member:cluster
+            for cluster, members in cluster_to_members.items()
+            for member in members
         }
-        print(member_to_cluster)
 
         out_fig = generate_heatmap_w_clustering(
             fp_pw_blast       = fp_pw_blast, 
             genera_tables_dir = genera_tables_dir,
             member_to_cluster = member_to_cluster)
-        outfile = outdir / ("heatmap_"+cluster_result.name+".png")
+
+        regex_res = regex_mcl_name.search(cluster_json.name)
+        if regex_res:
+            name = regex_res.group(1)
+        else:
+            name = cluster_json.stem
+
+        outfile = outdir / ("heatmap_"+name+".png")
         out_fig.write_image(outfile, width=1000, height=1000)
 
 

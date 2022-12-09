@@ -7,6 +7,10 @@ from qsub_modules.camisim import Camisim
 from qsub_modules.blastn_pw import PairwiseBlast
 from qsub_modules.preprocess import Preprocessor
 from qsub_modules.mcl_clustering import MCLClustering
+from qsub_modules.kmerquantifier import QuantifierKmer
+from qsub_modules.maginator import MAGinator
+
+#from qsub_modules.maginator import MAGinator
 
 import numpy as np
 import configparser
@@ -55,6 +59,10 @@ GENERA_CLEANED = [x.replace(" ", "_") for x in GENERA]
 # Add tasks and dependencies:
 job_id_map = dict()
 dependencies = []
+
+####################################################################
+###################### Fetch / generate data #######################
+####################################################################
 
 #### Fetch input genomes.
 genera_selected = config.get("Simulation", "Genera").strip("\n").split("\n")
@@ -106,6 +114,19 @@ job_id_map.update(
     }
 )
 
+## camisim summary df.
+dependencies.append((set(camisim_labels), 'camisim.describe_runs'))
+job_id_map["camisim.describe_runs"] = AddToQue(
+    command=f"""\
+python scripts/camisim_combine_descriptions.py\
+ --camisim-overview-files {WD_DATA}/camisim/*GB/simulation_overview.csv\
+ --camisim-config {WD_DATA /"camisim/configs"/ (GB_LABELS[0]+"_config.ini")} \
+ --outfile {WD_DATA}/camisim/simulation_overview_full.tsv\
+""",
+    name="camisim.collect",
+    success_file=WD_DATA / "camisim/.success_collect"
+)
+
 # add preprocess:
 preprocess_labels   =  ['preprocess.'+label for label in GB_LABELS]
 preprocess_output_directories  =  [WD_DATA / f"preprocessed/{label}" for label in GB_LABELS]
@@ -128,6 +149,12 @@ job_id_map.update(
     }
 )
 
+
+####################################################################
+###################### Data analysis steps #########################
+####################################################################
+
+######## Cluster and generate catalogues
 
 ## add pairwise blast of found bgcs.
 dependencies.append(
@@ -180,6 +207,177 @@ python analysis/12_inputbgc_with_clustering.py\
     success_file= WD_DATA / "results/12_inputbgc_with_clustering/.success"
 )
 
+### Generate catalogues from clusters.
+
+dependencies.append(
+    ({'antismash','mcl_clustering'}, 'catalogue_generation')
+)
+job_id_map['catalogue_generation'] = AddToQue(
+    command=f"""\
+python -m lib.catalogue_assembler\
+ --bgcfasta {WD_DATA / 'antismash/input_genomes/combined_bgc.fa'}\
+ --families {WD_DATA / 'mcl_clustering/out.blast_result.mci.I40.json'}\
+ -o {WD_DATA / 'catalogues'}\
+ --max-catalogue-size 5000
+""",
+    success_file=WD_DATA / 'catalogues/success_catalogues',
+    name='catalogue_generation',
+    loglvl=LOGLEVEL
+)
+
+### Count the kmers for the initial 5000 kmers in each catalogue.
+
+# add kmer quantification.
+kmerquant_labels = set()
+for label in GB_LABELS:
+    for sample in range(N_SAMPLES):
+        job_label = f"kmerQuant.{label}.{sample}"
+        kmerquant_labels.add(job_label)
+        datadir = WD_DATA / f"preprocessed/{label}/sample_{sample}"
+        dependencies.append(({'preprocess.'+label, "catalogue_generation"}, job_label))
+
+        job_id_map[job_label] = QuantifierKmer(
+            read_files = [
+                datadir / "trimmed.anonymous_reads.fq.gz",  
+                datadir / "trimmed.singleanonymous_reads.fq.gz"],
+            fp_catalogue = WD_DATA / "catalogues/catalogues",
+            output_dir = WD_DATA / f"kmer_quantification/{label}/sample_{sample}",
+            kmer_size = config.getint("KmerQuantification","KmerLength"),
+            loglvl=LOGLEVEL
+        )
+
+# add kmer count collection
+dependencies.append((kmerquant_labels, "count.collect"))
+count_fuzzy_path = WD_DATA / "kmer_quantification/*GB/sample_*/counts/*.counted"
+count_matrices_dir = WD_DATA / "kmer_quantification/count_matrices"
+job_id_map["count.collect"] = AddToQue(
+    command = f"python3 scripts/collect_count_matrices.py --fuzzy_path '{count_fuzzy_path}' -o {count_matrices_dir}",
+    success_file=count_matrices_dir/".success",
+    name="count.collect",
+    loglvl=LOGLEVEL
+)
+
+# add kmer count correction
+count_corrected_dir = count_matrices_dir.with_name("count_matrices_corrected")
+dependencies.append(("count.collect", "count.correct"))
+job_id_map["count.correct"] = AddToQue(
+    command = f"""\
+python3 scripts/correct_count_matrices.py\
+ --counts {count_matrices_dir}\
+ --reads-dir {WD_DATA}/preprocessed\
+ --fuzzy-dataset-names '*GB/sample_*'\
+ -k {config.getint("KmerQuantification", "KmerLength")}\
+ --est-read-err {config.getfloat("KmerQuantification", "PerBaseErrorRate")}\
+ -o {count_corrected_dir}\
+""",
+    success_file=count_corrected_dir/".success",
+    name="count.correct",
+    loglvl=LOGLEVEL
+)
+
+# prepare MAGinator input:
+dependencies.append(
+    ('count.correct', 'MAGinator.input_prep')
+    #({'count_collect', 'catalogue_generation'}, 'MAGinator.input_prep')
+)
+dir_MAGinator_top = WD_DATA / "MAGinator"
+job_id_map['MAGinator.input_prep'] = AddToQue(
+    command=f"""\
+python scripts/MAGinator_prepinput.py\
+ --catalogues {WD_DATA / 'catalogues/catalogues'}\
+ --count-matrix {count_corrected_dir/'counts_all.tsv'}\
+ -o {dir_MAGinator_top}\
+""",
+    success_file=dir_MAGinator_top/".success.input_prep",
+    name = 'MAGinator.input_prep',
+    loglvl=LOGLEVEL
+)
+
+# Run MAGinator (selected snakes)
+dependencies.append(
+    ('MAGinator.input_prep', 'MAGinator.main')
+)
+job_id_map['MAGinator.main'] = MAGinator(
+    MAGinator_dir="/home/projects/dtu_00009/people/henspi/git/MAGinator", #checkout of MAGinator repo.
+    MAGinator_wd=dir_MAGinator_top,
+    refined_set_size=config.getint("MAGinator", "RefinedSetSize"),
+    loglvl=LOGLEVEL
+)
+
+# Extract to flatfiles
+dependencies.append(
+    ('MAGinator.main', 'MAGinator.extract')
+)
+job_id_map['MAGinator.extract'] = AddToQue(
+    command=f"""
+mkdir -p {dir_MAGinator_top}/screened_flat
+Rscript --vanilla scripts/MAGinator_extract_results.R {dir_MAGinator_top}/collectionID_order.txt {dir_MAGinator_top}/signature_genes/screened {dir_MAGinator_top}/screened_flat
+""",
+    success_file=dir_MAGinator_top/".success_extract",
+    loglvl=LOGLEVEL
+)
+# We need to set the instance requirement in this specific way to away instance sharing between modules. 
+# We may be able to get around this by initing the qsub_requirements - but that is a lot of code to refactor.
+new_qsub_requirements = job_id_map['MAGinator.extract'].qsub_requirements.copy()
+new_qsub_requirements.update({'modules': 'tools gcc/7.4.0 intel/perflibs/2020_update4 R/4.0.0'})
+job_id_map['MAGinator.extract'].qsub_requirements = new_qsub_requirements
+
+######################################################################## 
+######################## Result Investations ###########################
+
+###### Analysis 8
+dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
+dir_ana_08.mkdir(parents=True, exist_ok=True)
+dependencies.append(
+    ({"camisim.collect",'MAGinator.extract'}, 'analysis.08')
+)
+job_id_map['analysis.08'] = AddToQue(
+    command=f"""\
+python analysis/08_mag_diagnostics.py\
+ --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
+ --family-json {WD_DATA}/catalogues/family_dump.json\
+ --count-mats {WD_DATA}/kmer_quantification/count_matrices\
+ --mag-flat {WD_DATA}/MAGinator/screened_flat\
+ -o {dir_ana_08}
+""",
+    name="analysis.08",
+    success_file=dir_ana_08/".succes"
+)
+
+###### Analysis 9
+# #NOTE: Could potentially be split
+dir_ana_09 = WD_DATA / "results/09_mag_kmer_location"
+dir_ana_09_pileup = dir_ana_09/"pileup"
+dir_ana_09_pileup.mkdir(parents=True, exist_ok=True)
+dependencies.append(
+    ({"camisim.collect", 'MAGinator.extract'}, 'analysis.09')
+)
+job_id_map['analysis.09'] = AddToQue(
+    command=f"""\
+#Run pileup
+module load samtools/1.14
+for ID_SAMPLE in $(cut -f1 {WD_DATA}/camisim/id_map.tsv)
+do
+    echo $ID_SAMPLE
+    samtools mpileup --min-MQ 0 --min-BQ 0 -a "{WD_DATA}/camisim/0_5GB/sample_0/bam/$ID_SAMPLE.bam"\
+     | awk '{{print $1","$2","$4}}' > "{dir_ana_09_pileup}/$ID_SAMPLE.csv"
+done
+module unload samtools/1.14
+
+python analysis/09_MAG_kmer_location.py\
+    --catalogues {WD_DATA}/catalogues/catalogues\
+    --family_dump {WD_DATA}/catalogues/family_dump.json\
+    --mag-flat {WD_DATA}/MAGinator/screened_flat\
+    --antismash {WD_DATA}/antismash/input_genomes\
+    --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
+    --count-matrices {WD_DATA}/kmer_quantification/count_matrices\
+    --camisim-id-map {WD_DATA}/camisim/id_map.tsv\
+    --pileup-dir {dir_ana_09_pileup}\
+    -o {dir_ana_09}\
+""",
+    success_file=dir_ana_09/".success",
+    loglvl=LOGLEVEL
+)
 
 
 if __name__ == "__main__":
@@ -199,9 +397,8 @@ if __name__ == "__main__":
         rerun_downstream=True,
         testing=args.test_print
     )
-
+    import json
     if args.dry_run:
         print("Dry-run nothing is added to the que.")
-        pass
     else:
         pipeline_simulate.run_pipeline()

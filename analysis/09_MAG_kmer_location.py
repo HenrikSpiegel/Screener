@@ -250,19 +250,19 @@ if __name__ == "__main__":
     outdir = Path(args.o)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    dir_catalogues  = Path("data/simulated_data_init/catalogues/catalogues/")# args.catalogues       #Path("../data/simulated_data/catalogues/catalogues/")
-    dir_mag_flat    = Path("data/simulated_data_init/MAGinator/screened_flat/") #args.mag_flat         #Path("../data/simulated_data/MAGinator/screened_flat/")
-    dir_antismash   = Path("data/simulated_data_init/antismash/input_genomes/") #args.antismash        #Path("../data/simulated_data/antismash/input_genomes/")
-    fp_catalogue_groups =  Path("data/simulated_data_init/catalogues/family_dump.json")#args.family_dump                 #Path("../data/simulated_data/catalogues/family_dump.json")
-    fp_id_map = Path("data/simulated_data_init/camisim/id_map.tsv") #args.camisim_id_map     #Path("../data/simulated_data/camisim/id_map.tsv")
-    dir_pileups = Path("data/simulated_data_init/results/09_mag_kmer_location/pileup") #args.pileup_dir # Path("../experiments/visualize_catalogue/pileups/") #TODO: This could be a place for looping <--
+    dir_catalogues  = args.catalogues  #Path("data/simulated_data_init/catalogues/catalogues/")#     
+    dir_mag_flat    = args.mag_flat#  Path("data/simulated_data_init/MAGinator/screened_flat/") #         
+    dir_antismash   = args.antismash  #Path("data/simulated_data_init/antismash/input_genomes/") #       
+    fp_catalogue_groups = args.family_dump # Path("data/simulated_data_init/catalogues/family_dump.json")#args.family_dump               
+    fp_id_map = args.camisim_id_map #Path("data/simulated_data_init/camisim/id_map.tsv") #    
+    dir_pileups = args.pileup_dir # Path("data/simulated_data_init/results/09_mag_kmer_location/pileup") # 
     catalogue_groupings = json.loads(fp_catalogue_groups.read_bytes())
     catalogue_belongs = {member: group for group, members in catalogue_groupings.items() for member in members}
     print(catalogue_belongs)
 
     # Getting expected values:
-    fp_simulation_oveview = Path("data/simulated_data_init/camisim/simulation_overview_full.tsv") #args.simulation_overview
-    dir_count_matrices = Path("data/simulated_data_init/kmer_quantification/count_matrices_corrected") #args.count_matrices ##Path("../data/simulated_data/kmer_quantification/count_matrices/")
+    fp_simulation_oveview = args.simulation_overview#  Path("data/simulated_data_init/camisim/simulation_overview_full.tsv") #
+    dir_count_matrices = args.count_matrices #Path("data/simulated_data_init/kmer_quantification/count_matrices_corrected")  ##Path("../data/simulated_data/kmer_quantification/count_matrices/")
 
 
     df_sim = pd.read_csv(fp_simulation_oveview, sep="\t")

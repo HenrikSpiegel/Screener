@@ -386,7 +386,8 @@ job_id_map['MAGinator.extract'].qsub_requirements = new_qsub_requirements
 
 ### MAG analysis
 
-dir_ana_08 = WD_DATA / "results/09_MAG_kmer_location"
+dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
+dir_ana_08.mkdir(parents=True, exist_ok=True)
 dependencies.append(
     ({"camisim.collect",'MAGinator.extract'}, 'analysis.08')
 )
@@ -410,9 +411,9 @@ dir_ana_09 = WD_DATA / "results/09_mag_kmer_location"
 dir_ana_09_pileup = dir_ana_09/"pileup"
 dir_ana_09_pileup.mkdir(parents=True, exist_ok=True)
 dependencies.append(
-    ({"camisim.collect", 'MAGinator.extract'}, 'analysis_09')
+    ({"camisim.collect", 'MAGinator.extract'}, 'analysis.09')
 )
-job_id_map['analysis_09'] = AddToQue(
+job_id_map['analysis.09'] = AddToQue(
     command=f"""\
 #Run pileup
 module load samtools/1.14
@@ -435,7 +436,7 @@ python analysis/09_MAG_kmer_location.py\
     --pileup-dir {dir_ana_09_pileup}\
     -o {dir_ana_09}\
 """,
-    success_file=dir_ana_09/".success_extract",
+    success_file=dir_ana_09/".success",
     loglvl=LOGLEVEL
 )
 
@@ -449,7 +450,7 @@ pipeline_simulate = PipelineBase(
     iteration_sleep=15,
     max_workers=12,
     rerun_downstream=True,
-    testing=True
+    testing=False
 )
 
 if __name__ == "__main__":

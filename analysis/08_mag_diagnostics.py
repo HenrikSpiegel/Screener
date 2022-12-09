@@ -159,33 +159,33 @@ if __name__ == '__main__':
             pbar.update(1)
     pbar.close()
 
-    #do one full:
-    df_i = df_count_combined
-    hist_data = [
-                df_i.loc[:,'RE'].values,
-                df_i.loc[df_i['kmer'].isin(df_gene_i['init']),'RE'].values,
-                df_i.loc[df_i['kmer'].isin(df_gene_i['best']),'RE'].values
-            ]
+    # #do one full:
+    # df_i = df_count_combined
+    # hist_data = [
+    #             df_i.loc[:,'RE'].values,
+    #             df_i.loc[df_i['kmer'].isin(df_gene_i['init']),'RE'].values,
+    #             df_i.loc[df_i['kmer'].isin(df_gene_i['best']),'RE'].values
+    #         ]
 
-    MRAE = [np.mean(np.abs(x)) for x in hist_data]
+    # MRAE = [np.mean(np.abs(x)) for x in hist_data]
 
-    group_labels = [
-        f'all_{len(df_i.kmer.drop_duplicates())}',
-        'MAG_init',
-        'MAG_best'
-    ]
+    # group_labels = [
+    #     f'all_{len(df_i.kmer.drop_duplicates())}',
+    #     'MAG_init',
+    #     'MAG_best'
+    # ]
 
-    mse_string = "MRAE: "+ " ".join([f"{label}: {value:0.1f}" for label, value in zip(group_labels, MRAE) ])
-    # Create distplot with custom bin_size
-    fig = ff.create_distplot(hist_data, group_labels, bin_size=.1,)
-    fig.update_layout(
-        title=f"Histogram with KDE curve showing distribution of relative errors across all datapoints<br><sup>{mse_string}",
-        yaxis_title="Probability Density",
-        xaxis_title="Relative Error",
-        yaxis1=dict(range=[0,5])
-        )
-    fig.update_traces(opacity=0.75)
-    fig.update_xaxes(range=[-1,25])
+    # mse_string = "MRAE: "+ " ".join([f"{label}: {value:0.1f}" for label, value in zip(group_labels, MRAE) ])
+    # # Create distplot with custom bin_size
+    # fig = ff.create_distplot(hist_data, group_labels, bin_size=.1,)
+    # fig.update_layout(
+    #     title=f"Histogram with KDE curve showing distribution of relative errors across all datapoints<br><sup>{mse_string}",
+    #     yaxis_title="Probability Density",
+    #     xaxis_title="Relative Error",
+    #     yaxis1=dict(range=[0,5])
+    #     )
+    # fig.update_traces(opacity=0.75)
+    # fig.update_xaxes(range=[-1,25])
 
-    file_image = outdir / "accross_all.png"
-    fig.write_image(file_image, width=1000, height=800)
+    # file_image = outdir / "accross_all.png"
+    # fig.write_image(file_image, width=1000, height=800)

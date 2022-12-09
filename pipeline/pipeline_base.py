@@ -7,7 +7,7 @@ from typing import List, Tuple, Union, Dict
 from pathlib import Path
 import os
 import humanize
-
+import pandas as pd
 import graphviz
 
 import numpy as np
@@ -141,61 +141,123 @@ jobs_failed: ({len(self.jobs_failed)})
             else:
                 return {'color':'grey', 'style':'filled'}
 
-    def generate_graphviz(self, file:Path):    
+
+    def _add_nodes(self, dot, jobs_total) -> list:
+        jobs1 = [x.split(".")[0] for x in jobs_total if len(x.split("."))==1]
+        jobs2 = pd.DataFrame([x.split(".") for x in jobs_total if len(x.split("."))==2], columns=["cluster","member"])
+        jobs3 = pd.DataFrame([x.split(".") for x in jobs_total if len(x.split("."))==3], columns=["cluster","subcluster","member"])
         
-            
-        sample_regex = re.compile(r"\.\d$")
-        dict_belong = dict()
-        dict_clusters = dict()
-        for job in self.jobs_total:
-            cleaned_name = sample_regex.sub("", job)
-            
-            if cleaned_name != job:
-                clust_name = "cluster_"+cleaned_name
-                dict_belong[job] = clust_name
-                if clust_name in dict_clusters:
-                    dict_clusters[clust_name].append(job)
-                else:
-                    dict_clusters[clust_name] = [job]
+        clusters = set()
+        # Generate nodes
+        #level1 jobs
+        for member_name in jobs1:
+            dot.node(member_name, **self._style_node(member_name))
+
+        #level2 jobs
+        for c_name, df_c in jobs2.groupby("cluster"):
+            c_label = f"cluster_{c_name}"
+            clusters.add(c_name)
+            with dot.subgraph(name=c_label) as c:
+                c.attr(shape='box', style= 'rounded,filled', color='#d4d0cf', label=c_name)
+                member_names = [".".join(x) for x in sorted(df_c.values.tolist(), key=lambda x:x[1])]
+                for i in range(len(member_names)-1):
+                    label = member_names[i].split(".")[-1]
+                    c.node(member_names[i], label=label, **self._style_node(member_names[i]))
+                    c.edge(member_names[i], member_names[i+1], style="invis", constraint="false")
+                c.node(member_names[-1], label=member_names[-1].split(".")[-1], **self._style_node(member_names[-1]))
+
+        #level3 jobs
+        for (c_name, sc_name), df_c in jobs3.groupby(["cluster","subcluster"]):
+            clusters.add(c_name)
+            with dot.subgraph(name=f"cluster_{c_name}") as c:
+                c.attr(shape='box', style= 'rounded,filled', color='#d4d0cf', label=c_name)
+                clusters.add(f"{c_name}.{sc_name}")
+                with c.subgraph(name=f"cluster_{c_name}.{sc_name}") as sc:
+                    member_names = [".".join(x) for x in sorted(df_c.values.tolist(), key=lambda x:x[2])]
+                    for i in range(len(member_names)-1):
+                        label = member_names[i].split(".")[-1]
+                        sc.attr(rankdir="TB")
+                        sc.attr(shape='box', style= 'rounded,filled', color='#bdb5b3', label=sc_name)
+                        sc.node(member_names[i], label=label, **self._style_node(member_names[i]))
+                        sc.edge(member_names[i], member_names[i+1], style="invis")
+                    sc.node(member_names[-1], label=member_names[-1].split(".")[-1], **self._style_node(member_names[-1]))
+        return clusters
+
+    def _generate_edge(self, child:str, parent:str, clusters:set):
+        child_split = child.split(".")
+        child_depth = len(child_split)
+        
+        parent_split = parent.split(".")
+        parent_depth = len(parent_split)
+        
+        edge_level = min(child_depth, parent_depth)
+        #print(edge_level)
+        #max_shared_index = edge_level-1
+        
+        parent_shared_index = ".".join(parent_split[0:edge_level])
+        if parent_shared_index in clusters:
+            tail = "cluster_"+ parent_shared_index
+        else:
+            tail = parent_shared_index
+        
+        child_shared_index = ".".join(child_split[0:edge_level])
+        
+        if child.startswith("analysis"):
+            head = child
+        else:
+            if child_shared_index in clusters:
+                head = "cluster_"+ child_shared_index
             else:
-                dict_belong[job] = cleaned_name
+                head = child_shared_index
 
-        dot = graphviz.Digraph(comment=self.pipe_name, node_attr={'shape':'box', 'style': 'rounded,filled'})
-        dot.attr(rankdir="LR")
-        dot.attr("node", style='filled')
-        clustered_nodes = set()
-        for name, members in dict_clusters.items():
-            clustered_nodes.update(members)
-            with dot.subgraph(name="cluster_"+name) as c:
-                c.attr(rankdir="TB")
-                c.attr(shape='box', style= 'rounded,filled', color='#82d2f0', label=name)
-                for i in range(len(members)-1):
-                    sort_mem = sorted(members)
-                    c.node(members[i], **self._style_node(members[i]))
-                    c.edge(sort_mem[i], sort_mem[i+1], style="invis")
-                c.node(members[-1], **self._style_node(members[-1]))
-
-        for job_id in self.jobs_total - clustered_nodes:
-            dot.node(job_id, **self._style_node(job_id))
-
-        for child, parents in self.dependency_dict.items():
-            if dict_belong[child].startswith('cluster_'):
-                if not child == min(dict_clusters[dict_belong[child]]):
-                    continue
-                head = dict_belong[child]
-            else:
-                head = None
+        #if within cluster we should set constrain = False to simplify.
+        constraint="true"
+        if (poten_cluster := parent.rsplit(".",1)[0]) == child.rsplit(".",1)[0]:
+            if poten_cluster in clusters:
+                constraint = "false"
+            
+        return {
+            'tail_name' :parent,
+            'head_name':child,
+            'ltail': tail,
+            'lhead': head,
+            'constraint':constraint 
+        }
+    
+    def _add_edges(self, dot, dep_dict, clusters):
+        all_edges = []
+        for child, parents in dep_dict.items():
             for parent in parents:
-                if dict_belong[parent].startswith('cluster_'):
-                    if not parent == max(dict_clusters[dict_belong[parent]]):
-                        continue
-                    tail = dict_belong[parent]
-                else:
-                    tail = None
-                dot.edge(parent, child, ltail=tail, lhead=head)
+                all_edges.append(self._generate_edge(child, parent, clusters))
+
+        df_edges = pd.DataFrame(all_edges)
+        df_edges.sort_values(['head_name', 'tail_name'], ascending=[True, False], inplace=True)
+        df_primary_edges = df_edges.drop_duplicates(["ltail","lhead"], keep="first").reset_index(drop=True)
+        
+        #remove non-clusters from lhead/ltail
+        df_primary_edges.loc[~df_primary_edges.loc[:,"lhead"].str.startswith("cluster_"),"lhead"] = None
+        df_primary_edges.loc[~df_primary_edges.loc[:,"ltail"].str.startswith("cluster_"),"ltail"] = None
+        
+        df_primary_edges.to_csv("test_edges.csv", index=False)
+        for edge in df_primary_edges.to_dict("records"):
+            dot.edge(**edge)
+        
+
+    def generate_graphviz(self, file:Path):
+        #Path("test/dep_dict.json").write_text(str(self.dependency_dict))
+        #Path("test/all_jobs").write_text(str(self.jobs_total))
+        dot = graphviz.Digraph(node_attr={'shape':'box', 'style': 'rounded,filled'})
+        dot.attr(rankdir="LR", compound="true")
+        dot.attr("node", style='filled')
+
+        cluster_set = self._add_nodes(dot, self.jobs_total)
+        self._add_edges(dot, self.dependency_dict, cluster_set)
 
         dot.render(file, cleanup=True)
-        self.log.info(f"Dependency graph written -> {file}.pdf")
+        try:
+            self.log.info(f"Dependency graph written -> {file}.pdf")
+        except Exception:
+            self.log.error("Failed call to DOT ensure module is loaded: [graphviz/2.40.1]")
 
     @property
     def log_setup(self):
