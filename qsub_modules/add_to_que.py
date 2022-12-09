@@ -41,6 +41,7 @@ class AddToQue(Base):
         self.log.debug(f"preflight not defined for {self.__class__.__name__}")
         pass
 
+# python -m qsub_modules.add_to_que --command 'python -m pipeline.data_simulation_large' --name pipeline --options runtime:4320 modules:"anaconda3/2021.11 graphviz/2.40.1" --success logs/rpipe.log.success
 
 if __name__ == "__main__":
     import argparse

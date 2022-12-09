@@ -30,7 +30,7 @@ class Preprocessor(Base):
                 
     qsub_requirements = dict(
         modules = "tools sickle/20150314",
-        runtime = 360,
+        runtime = 8*60,
         cores = 10,
         ram=40,
         )

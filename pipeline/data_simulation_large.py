@@ -123,7 +123,7 @@ python scripts/camisim_combine_descriptions.py\
  --camisim-config {WD_DATA /"camisim/configs"/ (GB_LABELS[0]+"_config.ini")} \
  --outfile {WD_DATA}/camisim/simulation_overview_full.tsv\
 """,
-    name="camisim.collect",
+    name="camisim.describe",
     success_file=WD_DATA / "camisim/.success_collect"
 )
 
@@ -177,7 +177,7 @@ python analysis/01_compare_input_bgc_genera.py\
  --genera-table-dir {WD_DATA}/input_genomes\
  -o {WD_DATA}/results/01_compare_input_bgc_genera\
 """,        
-    name='analysis_01',
+    name='analysis.01',
     loglvl=LOGLEVEL,
     success_file= WD_DATA / "results/01_compare_input_bgc_genera/.success"
 )
@@ -218,7 +218,7 @@ python -m lib.catalogue_assembler\
  --bgcfasta {WD_DATA / 'antismash/input_genomes/combined_bgc.fa'}\
  --families {WD_DATA / 'mcl_clustering/out.blast_result.mci.I40.json'}\
  -o {WD_DATA / 'catalogues'}\
- --max-catalogue-size 5000
+ --max-catalogue-size 15000
 """,
     success_file=WD_DATA / 'catalogues/success_catalogues',
     name='catalogue_generation',
@@ -275,6 +275,8 @@ python3 scripts/correct_count_matrices.py\
     loglvl=LOGLEVEL
 )
 
+### MAGINATOR stuff
+
 # prepare MAGinator input:
 dependencies.append(
     ('count.correct', 'MAGinator.input_prep')
@@ -329,13 +331,13 @@ job_id_map['MAGinator.extract'].qsub_requirements = new_qsub_requirements
 dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
 dir_ana_08.mkdir(parents=True, exist_ok=True)
 dependencies.append(
-    ({"camisim.collect",'MAGinator.extract'}, 'analysis.08')
+    ({"camisim.describe_runs",'MAGinator.extract'}, 'analysis.08')
 )
 job_id_map['analysis.08'] = AddToQue(
     command=f"""\
 python analysis/08_mag_diagnostics.py\
  --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
- --family-json {WD_DATA}/catalogues/family_dump.json\
+ --family-json {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
  --count-mats {WD_DATA}/kmer_quantification/count_matrices\
  --mag-flat {WD_DATA}/MAGinator/screened_flat\
  -o {dir_ana_08}
@@ -344,40 +346,40 @@ python analysis/08_mag_diagnostics.py\
     success_file=dir_ana_08/".succes"
 )
 
-###### Analysis 9
-# #NOTE: Could potentially be split
-dir_ana_09 = WD_DATA / "results/09_mag_kmer_location"
-dir_ana_09_pileup = dir_ana_09/"pileup"
-dir_ana_09_pileup.mkdir(parents=True, exist_ok=True)
-dependencies.append(
-    ({"camisim.collect", 'MAGinator.extract'}, 'analysis.09')
-)
-job_id_map['analysis.09'] = AddToQue(
-    command=f"""\
-#Run pileup
-module load samtools/1.14
-for ID_SAMPLE in $(cut -f1 {WD_DATA}/camisim/id_map.tsv)
-do
-    echo $ID_SAMPLE
-    samtools mpileup --min-MQ 0 --min-BQ 0 -a "{WD_DATA}/camisim/0_5GB/sample_0/bam/$ID_SAMPLE.bam"\
-     | awk '{{print $1","$2","$4}}' > "{dir_ana_09_pileup}/$ID_SAMPLE.csv"
-done
-module unload samtools/1.14
+# ###### Analysis 9
+# # #NOTE: Could potentially be split
+# dir_ana_09 = WD_DATA / "results/09_mag_kmer_location"
+# dir_ana_09_pileup = dir_ana_09/"pileup"
+# dir_ana_09_pileup.mkdir(parents=True, exist_ok=True)
+# dependencies.append(
+#     ({"camisim.describe_runs", 'MAGinator.extract'}, 'analysis.09')
+# )
+# job_id_map['analysis.09'] = AddToQue(
+#     command=f"""\
+# #Run pileup
+# module load samtools/1.14
+# for ID_SAMPLE in $(cut -f1 {WD_DATA}/camisim/id_map.tsv)
+# do
+#     echo $ID_SAMPLE
+#     samtools mpileup --min-MQ 0 --min-BQ 0 -a "{WD_DATA}/camisim/0_5GB/sample_0/bam/$ID_SAMPLE.bam"\
+#      | awk '{{print $1","$2","$4}}' > "{dir_ana_09_pileup}/$ID_SAMPLE.csv"
+# done
+# module unload samtools/1.14
 
-python analysis/09_MAG_kmer_location.py\
-    --catalogues {WD_DATA}/catalogues/catalogues\
-    --family_dump {WD_DATA}/catalogues/family_dump.json\
-    --mag-flat {WD_DATA}/MAGinator/screened_flat\
-    --antismash {WD_DATA}/antismash/input_genomes\
-    --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
-    --count-matrices {WD_DATA}/kmer_quantification/count_matrices\
-    --camisim-id-map {WD_DATA}/camisim/id_map.tsv\
-    --pileup-dir {dir_ana_09_pileup}\
-    -o {dir_ana_09}\
-""",
-    success_file=dir_ana_09/".success",
-    loglvl=LOGLEVEL
-)
+# python analysis/09_MAG_kmer_location.py\
+#     --catalogues {WD_DATA}/catalogues/catalogues\
+#     --family_dump {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
+#     --mag-flat {WD_DATA}/MAGinator/screened_flat\
+#     --antismash {WD_DATA}/antismash/input_genomes\
+#     --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
+#     --count-matrices {WD_DATA}/kmer_quantification/count_matrices\
+#     --camisim-id-map {WD_DATA}/camisim/id_map.tsv\
+#     --pileup-dir {dir_ana_09_pileup}\
+#     -o {dir_ana_09}\
+# """,
+#     success_file=dir_ana_09/".success",
+#     loglvl=LOGLEVEL
+# )
 
 
 if __name__ == "__main__":
@@ -402,3 +404,6 @@ if __name__ == "__main__":
         print("Dry-run nothing is added to the que.")
     else:
         pipeline_simulate.run_pipeline()
+
+
+        #python -m qsub_modules.add_to_que --command 'python -m pipeline.data_simulation_large' --name pipeline --options runtime:4320 modules:"anaconda3/2021.11 graphviz/2.40.1" --success logs/rpipe.log.success

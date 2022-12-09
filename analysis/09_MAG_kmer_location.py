@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 import pandas as pd
 import numpy as np
 import json
@@ -243,6 +244,7 @@ if __name__ == "__main__":
     parser.add_argument("--count-matrices", required=True, type=Path)
     parser.add_argument("--camisim-id-map", required=True, type=Path)
     parser.add_argument("--pileup-dir", required=True, type=Path)
+    parser.add_argument("--cleanup", action='store_true', help="Delete pileups after run.")
     parser.add_argument("-o", required=True, type=Path)
 
     args = parser.parse_args()
@@ -271,8 +273,8 @@ if __name__ == "__main__":
     # NOTE: We are running only on one sample here!
     #df_count_combined
     df_catalogue_errors_agg = df_catalogue_errors.query("dataset=='0_5GB' & sample=='sample_0'").groupby(['catalogue_name','kmer'])["RAE"].agg(["mean","std"]).add_suffix("_RAE").reset_index()
-    df_catalogue_errors_agg.to_csv(outdir/"cat_err_agg.tsv", sep="\t")
-    fp_antismash_json = dir_antismash/ "combined.json"
+    #df_catalogue_errors_agg.to_csv(outdir/"cat_err_agg.tsv", sep="\t")
+    fp_antismash_json = dir_antismash/ "combined_genomes.json"
 
     
 
@@ -316,5 +318,9 @@ if __name__ == "__main__":
             #(outdir/"fig_data.txt").write_text(json.dumps(fig.__dict__))
             fig.update_layout(height=600)
             fp_fig = outdir / f"{genome}.{region}_{fig_type}.png"
-            df_geneset_indexed_expanded.to_csv(outdir/"df.csv", sep="\t", index=False)
+            #df_geneset_indexed_expanded.to_csv(outdir/"df.csv", sep="\t", index=False)
             fig.write_image(fp_fig, height=600, width=1000)
+    
+    if args.cleanup:
+        print(f"Deleting pileups -> {dir_pileups}", file=sys.stderr)
+        shutil.rmtree(dir_pileups)

@@ -123,24 +123,33 @@ if __name__ == '__main__':
         for catalogue in catalogues:
             df_gene_i = df_genes_sets.loc[df_genes_sets['catalogue_name']==catalogue,:]
             df_i = df_data.loc[df_data['catalogue_name']==catalogue, ['kmer', 'dataset_sample', 'RE', "count_corrected", "expected_average_coverage"]]
+            
+            MAG_genesets = list({"init", "best"}.intersection(set(df_gene_i.columns)))
             hist_data = [
-                df_i.loc[:,'RE'].values,
-                df_i.loc[df_i['kmer'].isin(df_gene_i['init']),'RE'].values,
-                df_i.loc[df_i['kmer'].isin(df_gene_i['best']),'RE'].values
-            ]
+                df_i.loc[:,'RE'].values]
+            hist_data.extend([
+                df_i.loc[df_i['kmer'].isin(df_gene_i[gs]),'RE'].values
+                for gs in MAG_genesets
+            ])
+            # MAG_genesets
+            #     df_i.loc[df_i['kmer'].isin(df_gene_i['init']),'RE'].values,
+            #     #df_i.loc[df_i['kmer'].isin(df_gene_i['best']),'RE'].values
+            # ]
 
             MRAE = [np.mean(np.abs(x)) for x in hist_data]
 
-            group_labels = [
-                f'all_{len(df_i.kmer.drop_duplicates())}',
-                'MAG_init',
-                'MAG_best'
-            ]
+            group_labels = [f'all_{len(df_i.kmer.drop_duplicates())}']
+            group_labels.extend([f'MAG_{gs}' for gs in MAG_genesets])
 
             mse_string = "MRAE: "+ " ".join([f"{label}: {value:0.1f}" for label, value in zip(group_labels, MRAE) ])
 
             # Create distplot with custom bin_size
-            fig = ff.create_distplot(hist_data, group_labels, bin_size=.1,)
+            try:
+                fig = ff.create_distplot(hist_data, group_labels, bin_size=.1,)
+            except Exception as err:
+                print(f"[{name_data}:{catalogue}] ERROR "+str(err), file=sys.stderr)
+                print(f"[{name_data}:{catalogue}] ERROR "+str(err))
+                continue
             fig.update_layout(
                 title=f"Histogram with KDE curve showing distribution of relative errors for catelogue groupings.<br><sup>Data: {name_data}:{catalogue} - {mse_string}",
                 yaxis_title="Probability Density",
