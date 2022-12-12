@@ -42,6 +42,8 @@ class Camisim(Base):
         self.fp_distri  = self.outdir / "distribution.tsv"
 
         self.dir_datalabel  = self.outdir / self.datalabel
+        self.dir_temp = self.dir_datalabel / "tmp"
+        
         self.fp_config      = self.outdir / 'configs' / f"{self.datalabel}_config.ini"
 
         self.success_file = self.dir_datalabel / ".success"
@@ -51,7 +53,7 @@ class Camisim(Base):
         modules = "tools anaconda3/2021.11 perl samtools/1.13 camisim/1.3",
         runtime = 48*60, #With the larger genome sets we are pushing at least 6 hours at 0.5GB-5samples
         cores = 38,
-        ram=180,
+        ram=188
         )
 
     def generate_supporting_files_from_df(self, df_camisim:pd.DataFrame):
@@ -119,8 +121,8 @@ phase=0
 # ouput directory, where the output will be stored (will be overwritten if set in from_profile)
 output_directory={self.dir_datalabel}
 
-# temporary directory
-temp_directory=/tmp
+# temporary directory #It appears that we run out of space on /tmp maybe we try on harddrive instead - will be slower.
+temp_directory={self.dir_datalabel}/tmp 
 
 # gold standard assembly
 gsa=False
@@ -227,6 +229,7 @@ view=no\
                 raise RuntimeError("Camisim Already Ran successfully - Please reset directory.")
             self.log.warning(f"Removing files from previous failed runs -> {self.dir_datalabel}")
             shutil.rmtree(self.dir_datalabel)
+        self.dir_temp.mkdir(parents=True, exist_ok=True)
 
         # if check_input:
         #     input_files = glob.glob("data/simulated_data/input_genomes/*.fa") #TODO: set to check from genomes from config.

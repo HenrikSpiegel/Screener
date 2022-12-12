@@ -302,14 +302,21 @@ python3 scripts/correct_count_matrices.py\
     loglvl=LOGLEVEL
 )
 
+## General inspection of counts:
+dir_ana_13 = WD_DATA/ "results/13_count_distribution"
+dir_ana_13.mkdir(parents=True, exist_ok=True)
+dependencies.append(('count.correct', 'analysis.13'))
+job_id_map["analysis.13"] = AddToQue(
+    command = f"""\
+python analysis/13_count_distribution.py\
+ --dir-count-matrices {count_corrected_dir}\
+ -o {dir_ana_13}/
+""",
+    name = "analysis.13",
+    success_file=dir_ana_13/".success"
+)
 
-# parser.add_argument("--counts", required=True, type=Path, help="dir for raw count matrices")
-# parser.add_argument("--reads-dir", required=True, type=Path, help="Dir holding processed reads (or raw if not processing)")
-# parser.add_argument("--fuzzy-dataset-names", type=str, default='*GB/sample_*', help="fuzzy names for datasets in reads_dir, assumes parent*/sample* style naming.['*GB/sample_*']")
-# parser.add_argument("-k", default=21, type=int)
-# parser.add_argument("--est-read-err", default=0.015, type=float, help="Estimated average per base read error.")
 
-# parser.add_argument("-o", required=True, type=Path, help="outdir for corrected matrices.")
 
 # # add mapping quantification
 # map_quant_labels = set()

@@ -102,6 +102,7 @@ class PipelineBase:
             for job_id in self.jobs_holding:
                 jobs_to_rerun.update(children_recursive(job_id, self.parentage_dict))
             if jobs_to_rerun:
+                self.log.debug(f"{job_id} -> {jobs_to_rerun}")
                 self.log.warning(f"Jobs marked for rerun due to upstream changes ({len(jobs_to_rerun)})")
                 self.jobs_holding.update(jobs_to_rerun)
                 self.jobs_complete -= jobs_to_rerun
@@ -238,7 +239,6 @@ jobs_failed: ({len(self.jobs_failed)})
         df_primary_edges.loc[~df_primary_edges.loc[:,"lhead"].str.startswith("cluster_"),"lhead"] = None
         df_primary_edges.loc[~df_primary_edges.loc[:,"ltail"].str.startswith("cluster_"),"ltail"] = None
         
-        df_primary_edges.to_csv("test_edges.csv", index=False)
         for edge in df_primary_edges.to_dict("records"):
             dot.edge(**edge)
         
@@ -329,7 +329,7 @@ jobs_failed: ({len(self.jobs_failed)})
                 if parent in parentage_dict:
                     parentage_dict[parent].update(children)
                 else:
-                    parentage_dict[parent] = children
+                    parentage_dict[parent] = children.copy()
 
         self.jobs_holding = all_jobs.copy()
         self.jobs_total   = all_jobs.copy()

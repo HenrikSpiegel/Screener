@@ -274,7 +274,7 @@ if __name__ == "__main__":
     #df_count_combined
     df_catalogue_errors_agg = df_catalogue_errors.query("dataset=='0_5GB' & sample=='sample_0'").groupby(['catalogue_name','kmer'])["RAE"].agg(["mean","std"]).add_suffix("_RAE").reset_index()
     #df_catalogue_errors_agg.to_csv(outdir/"cat_err_agg.tsv", sep="\t")
-    fp_antismash_json = dir_antismash/ "combined_genomes.json"
+    fp_antismash_json = next(dir_antismash.glob("combined*.json"))
 
     
 

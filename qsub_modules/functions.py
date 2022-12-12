@@ -9,7 +9,7 @@ def syscall(command):
     result = job.stdout.split('\n')
     return result
 
-def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_00009',
+def submit2(command, runtime, cores, ram, nodetype="thinnode", directory='', modules='', group='dtu_00009',
     output='/dev/null', error='/dev/null', jobname="henspi", email='', dependency = [], test=False):
     """
     Function to submit a job to the Queueing System - without jobscript file
@@ -34,8 +34,10 @@ def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_0
         dependency = [dependency]
     if cores > 38:
         raise RuntimeError("Can't use more than 38 cores on a node")
-    if ram > 188:
-        raise RuntimeError("Can't use more than 120 GB on a node")
+    if ram > 188 and nodetype=="thinnode":
+        raise RuntimeError("Can't use more than 188 GB on a thinnode")
+    if ram > 1500:
+        raise RuntimeError("Can't use more than 1500 GB on a fatnode.")
     if runtime < 1:
         raise RuntimeError("Must allocate at least 1 minute runtime")
     minutes = runtime % 60
@@ -48,7 +50,7 @@ def submit2(command, runtime, cores, ram, directory='', modules='', group='dtu_0
     script += '#PBS -A ' + group + ' -W group_list=' + group + '\n'
     script += f'#PBS -e {error} -o {output} \n'
     script += '#PBS -d ' + directory + '\n'
-    script += '#PBS -l nodes=1:ppn=' + str(cores) + ',mem=' + str(ram) + 'GB' + '\n'
+    script += f"#PBS -l nodes=1:ppn={cores}:{nodetype},mem={ram}GB\n"
     script += '#PBS -l walltime=' + walltime + '\n'
     script += '#PBS -N '+ jobname + '\n'
     if dependency != []:

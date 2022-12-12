@@ -114,6 +114,16 @@ job_id_map.update(
     }
 )
 
+# # We need to modify larger camisims to run on fatnodes.
+# fatlabels =  [label for label, size in zip(camisim_labels, GBS_TO_RUN) if size > 1]
+# fat_reqs  = job_id_map[camisim_labels[0]].qsub_requirements.copy()
+# fat_reqs.update(
+#     {'nodetype':'fatnode', 'ram':1500}
+# )
+# for fl in fatlabels:
+#     job_id_map[fl].qsub_requirements = fat_reqs
+
+
 ## camisim summary df.
 dependencies.append((set(camisim_labels), 'camisim.describe_runs'))
 job_id_map["camisim.describe_runs"] = AddToQue(
