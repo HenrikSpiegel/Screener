@@ -235,7 +235,7 @@ python -m lib.catalogue_assembler\
  --bgcfasta {WD_DATA / 'antismash/input_genomes/combined_bgc.fa'}\
  --families {WD_DATA / 'mcl_clustering/out.blast_result.mci.I40.json'}\
  -o {WD_DATA / 'catalogues'}\
- --max-catalogue-size 15000
+ --max-catalogue-size 10000
 """,
     success_file=WD_DATA / 'catalogues/success_catalogues',
     name='catalogue_generation',
@@ -376,6 +376,31 @@ python scripts/counts_to_abundances.py\
 
 ######################################################################## 
 ######################## Result Investations ###########################
+
+###### Analysis 5:
+
+dir_ana_05 = WD_DATA / "results/05_simulation_results"
+dir_ana_05.mkdir(parents=True, exist_ok=True)
+dependencies.append(
+    ("MAGinator.abundances", "analysis.05")
+)
+job_id_map["analysis.05"] = AddToQue(
+    command=f"""\
+python analysis/05_simulation_result_and_comparison.py\
+ --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
+ --total-abundances {WD_DATA}/abundances/total_abundances.csv\
+ --family-dump {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
+ -o {dir_ana_05}\
+""",
+    name="analysis.05",
+    success_file=dir_ana_05/".success"
+)
+
+
+# parser.add_argument("--simulation-overview", required=True, type=Path)
+#     parser.add_argument("--total-abundances", required=True, type=Path)
+#     parser.add_argument("--family-dump", required=True, type=Path)
+#     parser.add_argument("-o", required=True, type=Path)
 
 ###### Analysis 8
 dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
