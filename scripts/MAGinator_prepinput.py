@@ -1,4 +1,5 @@
 from pathlib import Path
+import numpy as np
 import pandas as pd
 import sys
 import shutil
@@ -65,6 +66,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--catalogues", required=True, type=Path, help="directory containing .catalogue files")
     parser.add_argument("--count-matrix", required=True, type=Path, help="filepath for countmatrix for all catalogues and all samples.")
+    parser.add_argument("--min-dataset", type=float, help="If set will only use datasets >= min-dataset. (0_05GB.samplex -> 0.05gb)")
     parser.add_argument("-o", required=True, type=Path, help="top directory for MAGinator data workingdir")
     args = parser.parse_args()
 
@@ -76,6 +78,14 @@ if __name__ == "__main__":
     file_MAGinator_count.parent.mkdir(parents=True, exist_ok=True)
 
     generate_MAGinator_files(dir_catalogue, dir_MAGinator)
-    shutil.copyfile(file_counts_all, file_MAGinator_count)
+    if not args.min_dataset:
+        shutil.copyfile(file_counts_all, file_MAGinator_count)
+    else:
+        df_counts_all = pd.read_csv(file_counts_all, index_col=0)
+        col_ds_sizes = np.array([float(x.split(".")[0].replace("GB","").replace("_",".")) for x in df_counts_all.columns])
+        cols_include = df_counts_all.columns[col_ds_sizes>args.min_dataset]
+        df_counts_include = df_counts_all.loc[:,cols_include]
+        df_counts_include.to_csv(file_MAGinator_count, sep="\t")
+        
     print(f"Created countmatrix at -> {file_MAGinator_count}", file=sys.stderr)
 

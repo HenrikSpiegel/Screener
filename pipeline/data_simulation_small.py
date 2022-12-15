@@ -127,7 +127,22 @@ job_id_map.update(
      for label, input_files, outdir in zip(preprocess_labels, input_file_sets, preprocess_output_directories)
     }
 )
-
+# summaries preprocess (get avg processed read-length)
+dependencies.append(
+    (set(preprocess_labels), "preprocess.describe")
+    )
+job_id_map["preprocess.describe"] = AddToQue(
+    command=f"""\
+python scripts/extract_average_readlength.py\
+ --top-dir {WD_DATA}/preprocessed\
+ --fuzzy-dataset-names '*GB/sample*'\
+ -o {WD_DATA}/preprocessed/average_lenghts.json\
+ --threads 8\
+""",
+    name="preprocess.describe",
+    success_file=WD_DATA / "preprocessed/.success_describe",
+    loglvl=LOGLEVEL
+)
 
 ## Analysis part
 
@@ -286,13 +301,12 @@ job_id_map["count.collect"] = AddToQue(
 
 # add kmer count correction
 count_corrected_dir = count_matrices_dir.with_name("count_matrices_corrected")
-dependencies.append(("count.collect", "count.correct"))
+dependencies.append(({"count.collect", "preprocess.describe"}, "count.correct"))
 job_id_map["count.correct"] = AddToQue(
     command = f"""\
 python3 scripts/correct_count_matrices.py\
  --counts {count_matrices_dir}\
- --reads-dir {WD_DATA}/preprocessed\
- --fuzzy-dataset-names '*GB/sample_*'\
+ --avg-readlengths {WD_DATA}/preprocessed/average_lenghts.json\
  -k {config.getint("KmerQuantification", "KmerLength")}\
  --est-read-err {config.getfloat("KmerQuantification", "PerBaseErrorRate")}\
  -o {count_corrected_dir}\
@@ -449,20 +463,29 @@ python analysis/09_MAG_kmer_location.py\
 
 
 
-pipeline_simulate = PipelineBase(
-    config_file=CONFIG_FILE,
-    pipe_name=Path(__file__).stem,
-    dependencies = dependencies,
-    job_map = job_id_map,
-    iteration_sleep=15,
-    max_workers=12,
-    rerun_downstream=True,
-    testing=False
-)
 
 if __name__ == "__main__":
-    #pass
-    pipeline_simulate.run_pipeline()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--dry-run", action='store_true')
+    parser.add_argument("-t", "--test-print", action='store_true')
+    args = parser.parse_args()
+
+    pipeline_simulate = PipelineBase(
+        config_file=CONFIG_FILE,
+        pipe_name=Path(__file__).stem,
+        dependencies = dependencies,
+        job_map = job_id_map,
+        iteration_sleep=15,
+        max_workers=12,
+        rerun_downstream=True,
+        testing=args.test_print
+    )
+
+    if args.dry_run:
+        print("Dry-run nothing is added to the que.")
+    else:
+        pipeline_simulate.run_pipeline()
 
 
 

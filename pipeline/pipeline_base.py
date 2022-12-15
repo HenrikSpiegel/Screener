@@ -160,7 +160,7 @@ jobs_failed: ({len(self.jobs_failed)})
             clusters.add(c_name)
             with dot.subgraph(name=c_label) as c:
                 c.attr(shape='box', style= 'rounded,filled', color='#d4d0cf', label=c_name)
-                member_names = [".".join(x) for x in sorted(df_c.values.tolist(), key=lambda x:x[1])]
+                member_names = [".".join(x) for x in sorted(df_c.values.tolist(), key=lambda x: x[1])]
                 for i in range(len(member_names)-1):
                     label = member_names[i].split(".")[-1]
                     c.node(member_names[i], label=label, **self._style_node(member_names[i]))

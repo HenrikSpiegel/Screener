@@ -114,16 +114,6 @@ job_id_map.update(
     }
 )
 
-# # We need to modify larger camisims to run on fatnodes.
-# fatlabels =  [label for label, size in zip(camisim_labels, GBS_TO_RUN) if size > 1]
-# fat_reqs  = job_id_map[camisim_labels[0]].qsub_requirements.copy()
-# fat_reqs.update(
-#     {'nodetype':'fatnode', 'ram':1500}
-# )
-# for fl in fatlabels:
-#     job_id_map[fl].qsub_requirements = fat_reqs
-
-
 ## camisim summary df.
 dependencies.append((set(camisim_labels), 'camisim.describe_runs'))
 job_id_map["camisim.describe_runs"] = AddToQue(
@@ -157,6 +147,23 @@ job_id_map.update(
         loglvl=LOGLEVEL)
      for label, input_files, outdir in zip(preprocess_labels, input_file_sets, preprocess_output_directories)
     }
+)
+
+# summaries preprocess (get avg processed read-length)
+dependencies.append(
+    (set(preprocess_labels), "preprocess.describe")
+    )
+job_id_map["preprocess.describe"] = AddToQue(
+    command=f"""\
+python scripts/extract_average_readlength.py\
+ --top-dir {WD_DATA}/preprocessed\
+ --fuzzy-dataset-names '*GB/sample*'\
+ -o {WD_DATA}/preprocessed/average_lenghts.json\
+ --threads 8\
+""",
+    name="preprocess.describe",
+    success_file=WD_DATA / "preprocessed/.success_describe",
+    loglvl=LOGLEVEL
 )
 
 
@@ -269,13 +276,12 @@ job_id_map["count.collect"] = AddToQue(
 
 # add kmer count correction
 count_corrected_dir = count_matrices_dir.with_name("count_matrices_corrected")
-dependencies.append(("count.collect", "count.correct"))
+dependencies.append(({"count.collect", "preprocess.describe"}, "count.correct"))
 job_id_map["count.correct"] = AddToQue(
     command = f"""\
 python3 scripts/correct_count_matrices.py\
  --counts {count_matrices_dir}\
- --reads-dir {WD_DATA}/preprocessed\
- --fuzzy-dataset-names '*GB/sample_*'\
+ --avg-readlengths {WD_DATA}/preprocessed/average_lenghts.json\
  -k {config.getint("KmerQuantification", "KmerLength")}\
  --est-read-err {config.getfloat("KmerQuantification", "PerBaseErrorRate")}\
  -o {count_corrected_dir}\
@@ -285,11 +291,27 @@ python3 scripts/correct_count_matrices.py\
     loglvl=LOGLEVEL
 )
 
+## Analyse distribution of counts.
+dir_ana_13 = WD_DATA/ "results/13_count_distribution"
+dir_ana_13.mkdir(parents=True, exist_ok=True)
+
+dependencies.append(('count.collect', 'analysis.13'))
+job_id_map["analysis.13"] = AddToQue(
+    command = f"""\
+python analysis/13_count_distribution.py\
+ --dir-count-matrices {count_matrices_dir}\
+ -o {dir_ana_13}/
+""",
+    name = "analysis.13",
+    success_file=dir_ana_13/".success"
+)
+
+
 ### MAGINATOR stuff
 
 # prepare MAGinator input:
 dependencies.append(
-    ('count.correct', 'MAGinator.input_prep')
+    ('count.collect', 'MAGinator.input_prep')
     #({'count_collect', 'catalogue_generation'}, 'MAGinator.input_prep')
 )
 dir_MAGinator_top = WD_DATA / "MAGinator"
@@ -297,7 +319,8 @@ job_id_map['MAGinator.input_prep'] = AddToQue(
     command=f"""\
 python scripts/MAGinator_prepinput.py\
  --catalogues {WD_DATA / 'catalogues/catalogues'}\
- --count-matrix {count_corrected_dir/'counts_all.tsv'}\
+ --count-matrix {count_matrices_dir/'counts_all.tsv'}\
+ --min-dataset 0.08\
  -o {dir_MAGinator_top}\
 """,
     success_file=dir_MAGinator_top/".success.input_prep",
@@ -333,6 +356,23 @@ Rscript --vanilla scripts/MAGinator_extract_results.R {dir_MAGinator_top}/collec
 new_qsub_requirements = job_id_map['MAGinator.extract'].qsub_requirements.copy()
 new_qsub_requirements.update({'modules': 'tools gcc/7.4.0 intel/perflibs/2020_update4 R/4.0.0'})
 job_id_map['MAGinator.extract'].qsub_requirements = new_qsub_requirements
+
+dependencies.append(
+    ({'camisim.describe_runs', 'MAGinator.extract'}, 'MAGinator.abundances')
+)
+job_id_map["MAGinator.abundances"] = AddToQue(
+    command = f"""\
+python scripts/counts_to_abundances.py\
+ --count-matrices {count_matrices_dir}\
+ --mag-screened {WD_DATA}/MAGinator/screened_flat\
+ --read-len-json {WD_DATA}/preprocessed/average_lenghts.json\
+ --kmer-len {config.get("KmerQuantification", "KmerLength")}\
+ --error-rate-est {config.get("KmerQuantification", "PerBaseErrorRate")}\
+ -o {WD_DATA}/abundances\
+    """,
+    name="to_abundances",
+    success_file=WD_DATA/"abundances/.success"
+)
 
 ######################################################################## 
 ######################## Result Investations ###########################
@@ -409,7 +449,7 @@ if __name__ == "__main__":
         rerun_downstream=True,
         testing=args.test_print
     )
-    import json
+
     if args.dry_run:
         print("Dry-run nothing is added to the que.")
     else:

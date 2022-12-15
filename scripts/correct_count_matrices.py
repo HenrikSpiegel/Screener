@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import pandas as pd
 
@@ -44,8 +45,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--counts", required=True, type=Path, help="dir for raw count matrices")
-    parser.add_argument("--reads-dir", required=True, type=Path, help="Dir holding processed reads (or raw if not processing)")
-    parser.add_argument("--fuzzy-dataset-names", type=str, default='*GB/sample_*', help="fuzzy names for datasets in reads_dir, assumes parent*/sample* style naming.['*GB/sample_*']")
+    parser.add_argument("--avg-readlengths", required=True, type=Path, help="json holding dataset:avg_read_length")
     parser.add_argument("-k", default=21, type=int)
     parser.add_argument("--est-read-err", default=0.015, type=float, help="Estimated average per base read error.")
     
@@ -54,33 +54,36 @@ if __name__ == "__main__":
 
     ##
 
-    dir_counts_raw = args.counts        # WD/"kmer_quantification/count_matrices"
-    dir_counts_corrected = args.o           #WD/"kmer_quantification/count_matrices_corrected"
+    dir_counts_raw          = Path(args.counts)        # WD/"kmer_quantification/count_matrices"
+    dir_counts_corrected    = Path(args.o)             # WD/"kmer_quantification/count_matrices_corrected"
 
-    dir_preprocessed = args.reads_dir #WD/"preprocessed"
-    fuzzy_dataset_name = args.fuzzy_dataset_names ##"*GB/sample*"
-
+    json_read_lengths = Path(args.avg_readlengths)     # WD/"preprocessed"
+    
     kmer=args.k
     est_error=args.est_read_err
 
     dir_counts_corrected.mkdir(parents=True, exist_ok=True)
 
-    ##
-    #print(dir_preprocessed)
-    #print(list(dir_preprocessed.glob(fuzzy_dataset_name)))
 
-    # Get average readlength: Quite expensive - could perhaps be extracted from the preprocess stderr/stdout???
-    sample_avg_readlength = {}
-    datasets = dir_preprocessed.glob(fuzzy_dataset_name)
-    if not datasets:
-        raise FileNotFoundError(dir_preprocessed/fuzzy_dataset_name)
-    for dataset in datasets:      #(pbar := tqdm(list((dir_preprocessed).glob(fuzzy_dataset_name)))):
-        sample_short = dataset.parent.name+"."+dataset.name
-        #pbar.set_description(f"[{sample_short}] Getting average processed readlength")
+    dict_read_lengths = json.loads(json_read_lengths.read_text())
+    # fix keys from full length paths to dataset.sample
+    sample_avg_readlength = {
+        Path(k).parent.name+"."+Path(k).name: float(v) 
+        for k, v in dict_read_lengths.items()
+        }
+
+    # # Get average readlength: Quite expensive - could perhaps be extracted from the preprocess stderr/stdout???
+    # sample_avg_readlength = {}
+    # datasets = dir_preprocessed.glob(fuzzy_dataset_name)
+    # if not datasets:
+    #     raise FileNotFoundError(dir_preprocessed/fuzzy_dataset_name)
+    # for dataset in datasets:      #(pbar := tqdm(list((dir_preprocessed).glob(fuzzy_dataset_name)))):
+    #     sample_short = dataset.parent.name+"."+dataset.name
+    #     #pbar.set_description(f"[{sample_short}] Getting average processed readlength")
         
-        files = dataset.glob("*reads.fq.gz")
-        avg_read = get_average_length(files)
-        sample_avg_readlength[sample_short] = avg_read
+    #     files = dataset.glob("*reads.fq.gz")
+    #     avg_read = get_average_length(files)
+    #     sample_avg_readlength[sample_short] = avg_read
 
     for fp_raw in dir_counts_raw.glob("*.tsv"):
         filename = fp_raw.name
