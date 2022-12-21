@@ -51,14 +51,19 @@ class BGCSuperCluster:
         return self._kmers_within
         
     
-    def describe_distinct(self):
+    def describe_distinct(self, max_rows = None):
         if self.kmers_distinct == []:
             return None
         values, counts = np.unique(list(self.kmers_distinct.values()), return_counts=True)
         size = self.size
         desc = [f"({self.name}) distribution of distinct kmers."]
-        for value, count in zip(values, counts):
+        n_row = 0
+        for value, count in sorted(zip(values, counts), key=lambda x:x[0], reverse=True):
+            if max_rows:
+                if n_row >= max_rows:
+                    break
             desc.append(f"{value*size:.0f}/{size}({value*100:.1f}%): {count}")
+            n_row +=1
         return "\n".join(desc)
 
 class CatalogueAssembler:
@@ -326,12 +331,12 @@ class CatalogueAssembler:
                 outkmers = outkmers.union(set(SC_out.kmers_within.keys()))
             SC.kmers_distinct = {k:v for k,v in SC.kmers_within.items() if k not in outkmers}
             SC.kmers_catalogue = self.downsample_kmers(SC.kmers_distinct, n=max_catalogue_size, seed=random_seed)
-            self.log.debug("Frequency of distinct_kmers\n"+SC.describe_distinct())
+            self.log.debug("Frequency of distinct_kmers\n"+SC.describe_distinct(max_rows=5))
 
     def describe_super_clusters(self) -> str:
         descriptions = []
         for SC in self.superclusters:
-            descriptions.append(SC.describe_distinct())
+            descriptions.append(SC.describe_distinct(max_rows=10))
         return "\n".join(descriptions)
     
     def print_catalogues(self, directory:Path):

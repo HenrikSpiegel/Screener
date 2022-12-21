@@ -242,8 +242,6 @@ python -m lib.catalogue_assembler\
     loglvl=LOGLEVEL
 )
 
-### Count the kmers for the initial 5000 kmers in each catalogue.
-
 # add kmer quantification.
 kmerquant_labels = set()
 for label in GB_LABELS:
@@ -413,7 +411,7 @@ job_id_map['analysis.08'] = AddToQue(
 python analysis/08_mag_diagnostics.py\
  --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
  --family-json {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
- --count-mats {WD_DATA}/kmer_quantification/count_matrices\
+ --count-mats {WD_DATA}/kmer_quantification/count_matrices_corrected\
  --mag-flat {WD_DATA}/MAGinator/screened_flat\
  -o {dir_ana_08}
 """,

@@ -55,7 +55,7 @@ if __name__ == '__main__':
             for cat, cat_members in catalogue_groupings.items()]
         rows.extend(group_rows)
     df_catalogue_expect = pd.DataFrame(rows, columns = ["dataset", "sample","catalogue_name", "expected_average_coverage"])
-    df_catalogue_expect.query("dataset == '0_005GB'").to_csv(outdir/"sim.tsv", sep="\t")
+    #df_catalogue_expect.query("dataset == '0_005GB'").to_csv(outdir/"sim.tsv", sep="\t")
     # Collecting counts:
     dir_count_matrices = Path(dir_count_matrices)
     catalouge_count_files = [file for file in dir_count_matrices.glob("*.tsv") if not file.stem=="counts_all"]
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         outdir_sub = outdir/name_data
         outdir_sub.mkdir(parents=True, exist_ok=True)
         for catalogue in catalogues:
-            df_gene_i = df_genes_sets.loc[df_genes_sets['catalogue_name']==catalogue,:]
+            df_gene_i = df_genes_sets.loc[df_genes_sets['catalogue_name']==catalogue,:].dropna(axis=1, how="all")
             df_i = df_data.loc[df_data['catalogue_name']==catalogue, ['kmer', 'dataset_sample', 'RE', "count_corrected", "expected_average_coverage"]]
             
             MAG_genesets = list({"init", "best"}.intersection(set(df_gene_i.columns)))

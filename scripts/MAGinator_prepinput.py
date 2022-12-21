@@ -81,9 +81,9 @@ if __name__ == "__main__":
     if not args.min_dataset:
         shutil.copyfile(file_counts_all, file_MAGinator_count)
     else:
-        df_counts_all = pd.read_csv(file_counts_all, index_col=0)
+        df_counts_all = pd.read_csv(file_counts_all, sep="\t", index_col=0)
         col_ds_sizes = np.array([float(x.split(".")[0].replace("GB","").replace("_",".")) for x in df_counts_all.columns])
-        cols_include = df_counts_all.columns[col_ds_sizes>args.min_dataset]
+        cols_include = df_counts_all.columns[col_ds_sizes>=args.min_dataset]
         df_counts_include = df_counts_all.loc[:,cols_include]
         df_counts_include.to_csv(file_MAGinator_count, sep="\t")
         

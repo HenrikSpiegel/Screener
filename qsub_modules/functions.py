@@ -50,7 +50,7 @@ def submit2(command, runtime, cores, ram, nodetype="thinnode", directory='', mod
     script += '#PBS -A ' + group + ' -W group_list=' + group + '\n'
     script += f'#PBS -e {error} -o {output} \n'
     script += '#PBS -d ' + directory + '\n'
-    script += f"#PBS -l nodes=1:ppn={cores}:{nodetype},mem={ram}GB\n"
+    script += f"#PBS -l nodes=1:ppn={cores}{':'+nodetype if nodetype=='fatnode' else ''},mem={ram}GB\n"
     script += '#PBS -l walltime=' + walltime + '\n'
     script += '#PBS -N '+ jobname + '\n'
     if dependency != []:
