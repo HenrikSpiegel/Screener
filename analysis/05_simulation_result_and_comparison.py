@@ -53,13 +53,14 @@ if __name__ == "__main__":
 
     #########################################################
     ################## Generate RE plot:#####################
+    #methods = [m for m in df_err_long.method.drop_duplicates() if m in ["random", "init", "best"]]
+    methods = ["random","init", "best"]
     px.colors.qualitative.Plotly
     color_map = {
-        'init':px.colors.qualitative.Plotly[0],
-        'best':px.colors.qualitative.Plotly[1],
-        'raw_5000':px.colors.qualitative.Plotly[2]
+        m:px.colors.qualitative.Plotly[i]
+        for i, m in enumerate(methods)
     }
-    df_plot = df_err_long.query("estimate_agg == 'negbinom_mu_corr'")
+    df_plot = df_err_long.query(f"estimate_agg == 'negbinom_mu_corr' & method.isin({methods})").reset_index(drop=True)
 
     catagories, df_catagories = zip(*list(df_plot.groupby("catalogue_name")))
     titles = []

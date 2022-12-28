@@ -305,64 +305,89 @@ python analysis/13_count_distribution.py\
 )
 
 
-### MAGINATOR stuff
+# ### MAGINATOR stuff
 
-# prepare MAGinator input:
+# # prepare MAGinator input:
+# dependencies.append(
+#     ('count.collect', 'MAGinator.input_prep')
+#     #({'count_collect', 'catalogue_generation'}, 'MAGinator.input_prep')
+# )
+# dir_MAGinator_top = WD_DATA / "MAGinator"
+# job_id_map['MAGinator.input_prep'] = AddToQue(
+#     command=f"""\
+# python scripts/MAGinator_prepinput.py\
+#  --catalogues {WD_DATA / 'catalogues/catalogues'}\
+#  --count-matrix {count_matrices_dir/'counts_all.tsv'}\
+#  --min-dataset 0.08\
+#  -o {dir_MAGinator_top}\
+# """,
+#     success_file=dir_MAGinator_top/".success.input_prep",
+#     name = 'MAGinator.input_prep',
+#     loglvl=LOGLEVEL
+# )
+
+# # Run MAGinator (selected snakes)
+# dependencies.append(
+#     ('MAGinator.input_prep', 'MAGinator.main')
+# )
+# job_id_map['MAGinator.main'] = MAGinator(
+#     MAGinator_dir="/home/projects/dtu_00009/people/henspi/git/MAGinator", #checkout of MAGinator repo.
+#     MAGinator_wd=dir_MAGinator_top,
+#     refined_set_size=config.getint("MAGinator", "RefinedSetSize"),
+#     loglvl=LOGLEVEL
+# )
+
+# # Extract to flatfiles
+# dependencies.append(
+#     ('MAGinator.main', 'MAGinator.extract')
+# )
+# job_id_map['MAGinator.extract'] = AddToQue(
+#     command=f"""
+# mkdir -p {dir_MAGinator_top}/screened_flat
+# Rscript --vanilla scripts/MAGinator_extract_results.R {dir_MAGinator_top}/collectionID_order.txt {dir_MAGinator_top}/signature_genes/screened {dir_MAGinator_top}/screened_flat
+# """,
+#     success_file=dir_MAGinator_top/".success_extract",
+#     loglvl=LOGLEVEL
+# )
+# # We need to set the instance requirement in this specific way to away instance sharing between modules. 
+# # We may be able to get around this by initing the qsub_requirements - but that is a lot of code to refactor.
+# new_qsub_requirements = job_id_map['MAGinator.extract'].qsub_requirements.copy()
+# new_qsub_requirements.update({'modules': 'tools gcc/7.4.0 intel/perflibs/2020_update4 R/4.0.0'})
+# job_id_map['MAGinator.extract'].qsub_requirements = new_qsub_requirements
+
+### MAGpy stuff
 dependencies.append(
-    ('count.collect', 'MAGinator.input_prep')
-    #({'count_collect', 'catalogue_generation'}, 'MAGinator.input_prep')
+    ('count.collect', 'MAGpy.main')
 )
-dir_MAGinator_top = WD_DATA / "MAGinator"
-job_id_map['MAGinator.input_prep'] = AddToQue(
-    command=f"""\
-python scripts/MAGinator_prepinput.py\
- --catalogues {WD_DATA / 'catalogues/catalogues'}\
- --count-matrix {count_matrices_dir/'counts_all.tsv'}\
- --min-dataset 0.08\
- -o {dir_MAGinator_top}\
+job_id_map["MAGpy.main"] = AddToQue(
+    command = f"""\
+python -m lib.magpy\
+ --count-files {WD_DATA}/kmer_quantification/count_matrices/counts_all.tsv\
+ --meta-files {WD_DATA}/catalogues/metafiles/*.meta\
+ --output {WD_DATA}/MAGpy\
+ --full-output\
+ --max-threads 20\
+ --catalogue-size 500\
+ --verbosity INFO\
+ --rng-seed 2812\
+ --step-sizes 40 35 30 25 20 15 10 5 2\
+ --retries 15\
+ --min-improvement 0.02\
 """,
-    success_file=dir_MAGinator_top/".success.input_prep",
-    name = 'MAGinator.input_prep',
-    loglvl=LOGLEVEL
+    name="MAGpy.main",
+    success_file=WD_DATA/"MAGpy/.success"
 )
 
-# Run MAGinator (selected snakes)
-dependencies.append(
-    ('MAGinator.input_prep', 'MAGinator.main')
-)
-job_id_map['MAGinator.main'] = MAGinator(
-    MAGinator_dir="/home/projects/dtu_00009/people/henspi/git/MAGinator", #checkout of MAGinator repo.
-    MAGinator_wd=dir_MAGinator_top,
-    refined_set_size=config.getint("MAGinator", "RefinedSetSize"),
-    loglvl=LOGLEVEL
-)
 
-# Extract to flatfiles
-dependencies.append(
-    ('MAGinator.main', 'MAGinator.extract')
-)
-job_id_map['MAGinator.extract'] = AddToQue(
-    command=f"""
-mkdir -p {dir_MAGinator_top}/screened_flat
-Rscript --vanilla scripts/MAGinator_extract_results.R {dir_MAGinator_top}/collectionID_order.txt {dir_MAGinator_top}/signature_genes/screened {dir_MAGinator_top}/screened_flat
-""",
-    success_file=dir_MAGinator_top/".success_extract",
-    loglvl=LOGLEVEL
-)
-# We need to set the instance requirement in this specific way to away instance sharing between modules. 
-# We may be able to get around this by initing the qsub_requirements - but that is a lot of code to refactor.
-new_qsub_requirements = job_id_map['MAGinator.extract'].qsub_requirements.copy()
-new_qsub_requirements.update({'modules': 'tools gcc/7.4.0 intel/perflibs/2020_update4 R/4.0.0'})
-job_id_map['MAGinator.extract'].qsub_requirements = new_qsub_requirements
 
 dependencies.append(
-    ({'camisim.describe_runs', 'MAGinator.extract'}, 'MAGinator.abundances')
+    ('MAGpy.main', 'MAGpy.abundances')
 )
-job_id_map["MAGinator.abundances"] = AddToQue(
+job_id_map["MAGpy.abundances"] = AddToQue(
     command = f"""\
 python scripts/counts_to_abundances.py\
  --count-matrices {count_matrices_dir}\
- --mag-screened {WD_DATA}/MAGinator/screened_flat\
+ --mag-screened {WD_DATA}/MAGpy/screened_flat\
  --read-len-json {WD_DATA}/preprocessed/average_lenghts.json\
  --kmer-len {config.get("KmerQuantification", "KmerLength")}\
  --error-rate-est {config.get("KmerQuantification", "PerBaseErrorRate")}\
@@ -380,7 +405,7 @@ python scripts/counts_to_abundances.py\
 dir_ana_05 = WD_DATA / "results/05_simulation_results"
 dir_ana_05.mkdir(parents=True, exist_ok=True)
 dependencies.append(
-    ("MAGinator.abundances", "analysis.05")
+    ("MAGpy.abundances", "analysis.05")
 )
 job_id_map["analysis.05"] = AddToQue(
     command=f"""\
@@ -404,7 +429,7 @@ python analysis/05_simulation_result_and_comparison.py\
 dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
 dir_ana_08.mkdir(parents=True, exist_ok=True)
 dependencies.append(
-    ({"camisim.describe_runs",'MAGinator.extract'}, 'analysis.08')
+    ({"camisim.describe_runs",'MAGpy.main'}, 'analysis.08')
 )
 job_id_map['analysis.08'] = AddToQue(
     command=f"""\
@@ -412,7 +437,7 @@ python analysis/08_mag_diagnostics.py\
  --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
  --family-json {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
  --count-mats {WD_DATA}/kmer_quantification/count_matrices_corrected\
- --mag-flat {WD_DATA}/MAGinator/screened_flat\
+ --mag-flat {WD_DATA}/MAGpy/screened_flat\
  -o {dir_ana_08}
 """,
     name="analysis.08",

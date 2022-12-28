@@ -96,7 +96,7 @@ class NB_Utils:
             x=total_counts,
             y=observed_kmers,
             log_x=True,
-            title = f'Relationship between number of observed members and total counts assigned to catalogue<br><sup> MSE (expected vs. observed): {mse:.2F}',
+            title = f'Relationship between unique and total member count.<br><sup> MSE (expected vs. observed): {mse:.2F}',
             labels = {
                 'x': 'Total counts assigned to catalogue',
                 'y': 'Total number of observed catalogue members',
@@ -159,8 +159,10 @@ class NB_Utils:
         nobs = len(endog)
 
         #Note we ignore the warnings to reduce clutter in stderr but handle them below by returning a flag.
+        
         warnings.simplefilter('ignore',category=HessianInversionWarning)
         warnings.simplefilter('ignore',category=ConvergenceWarning)
+        warnings.simplefilter('ignore',category=RuntimeWarning)
         try:
             m_fitted = m.fit(disp=0)
         except Exception:
@@ -168,15 +170,12 @@ class NB_Utils:
 
         warnings.simplefilter('default',category=HessianInversionWarning)
         warnings.simplefilter('default',category=ConvergenceWarning)
+        warnings.simplefilter('default',category=RuntimeWarning)
 
         hessianfail = m_fitted._results.__dict__["normalized_cov_params"] is None
         is_converged = m_fitted._results.__dict__["mle_retvals"]["converged"]
 
-        if hessianfail or (not is_converged):
-            failed_fit = True
-        else:
-            failed_fit = False
-
+        failed_fit =  hessianfail or (not is_converged)
 
         statsmodels_major_version = int(sm.__version__.split(".")[1])
         if statsmodels_major_version >= 14:
