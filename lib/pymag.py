@@ -1,193 +1,20 @@
+import json
 import logging
 from pathlib import Path
-import warnings
 
 import pandas as pd
 import numpy as np
 from typing import List, Sequence, Set, Union
 import plotly
-import plotly.express as px
-import plotly.graph_objects as go
 
-import scipy
-import statsmodels.api as sm
 import multiprocessing
-
-
-class NB_Utils:
-    """
-    Namespace class for static methods related to fitting count data to Negetive Binomials.
-    """
-    @staticmethod
-    def expected_detection(G, N) -> float:
-        """
-        Trines formula (1)
-        Given the total counts N and G different identifier then
-        the probability of not observing a specific identifier is given by
-        P0 = ((G-1)/G)**N, and thus for a given N the expected number of 
-        observed genes are given by (1-P0)*G.
-
-        Parameters
-        ------
-        G : int
-            Number of different identifiers
-        N : Int
-            Number of total observations of all identifiers
-
-        Returns
-        ------
-        Expected number of detected identifiers : float
-        """
-        P0 = ((G-1)/G)**N
-        return (1-P0)*G
-
-    @staticmethod
-    def calculate_detection_mse(count_matrix: np.ndarray) -> float:
-        """
-        Trines Model implementation step (2)
-        Calculates the MSE between the expected and observed realionship
-        between distinct observed identifiers and total counts.
-
-        Parameters
-        ------
-        count_matrix : np.ndarray
-            matrix containing counts (rows=identifiers, columns=samples)
-        
-        Returns
-        ------
-        mse : float
-
-        """
-        # determine kmer detection:
-        total_counts = count_matrix.sum(axis=0)
-        observed_identifier = (count_matrix>0).sum(axis=0)
-
-        G = count_matrix.shape[0]
-        expected = [NB_Utils.expected_detection(G, Nj) for Nj in total_counts]
-
-        mse = np.mean((observed_identifier-expected)**2)
-        return mse
-
-    @staticmethod
-    def plot_expected_detection_curve(count_matrix: np.ndarray) -> plotly.graph_objs.Figure:
-        """
-        Calculates and plots the expected vs observed relationship 
-        between total assigned counts and number of observed members
-        of a single catalogue.
-        
-        Parameters:
-        -----
-        count_matrix : np.ndarray
-            Array with rows of identifers and columns of samples
-        
-        Returns:
-        -----
-        fig : plotly.graph_objs.Figure
-        
-        """    
-        total_counts = count_matrix.sum(axis=0)
-        observed_kmers = (count_matrix>0).sum(axis=0)
-
-        G = count_matrix.shape[0]
-        expected = [NB_Utils.expected_detection(G, Nj) for Nj in total_counts]
-
-        mse = np.mean((observed_kmers-expected)**2)
-        
-        total_range = list(range(0, total_counts.max()))
-        expected = [NB_Utils.expected_detection(G, Nj) for Nj in total_range]
-        fig = px.scatter(
-            color=["Observed" for x in total_counts],
-            x=total_counts,
-            y=observed_kmers,
-            log_x=True,
-            title = f'Relationship between number of observed members and total counts assigned to catalogue<br><sup> MSE (expected vs. observed): {mse:.2F}',
-            labels = {
-                'x': 'Total counts assigned to catalogue',
-                'y': 'Total number of observed catalogue members',
-                'color':''
-            }
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=total_range,
-                y=expected,
-                name="Expected"
-            )
-        )
-        return fig
-
-    @staticmethod
-    def tukeys_outlier_detection(counts: np.ndarray, tukeys_const: float = 1.5):
-        """
-        Perform outlier detection based on tukeys IQR method.
-        Outliers are defined as points outside of the q1 or q3 by iqr*tukeys_const or more.
-        tukeys_range = (q3-q1)*tukeys_const
-        outlier = (counts < (q1-tukeys_range)) | ((q3+tukeys_range) < counts)
-        
-        Parameters
-        -----
-        tukeys_const : float
-            Weight for IQR (default is 1.5 which is also default for boxplot whiskers)
-        
-        Returns
-        -----
-        is_outlier : List[bool]
-            list of boolean, true = outlier.
-        """
-        q1, q3 = np.percentile(counts, [25,75])
-        tukeys_range = (q3-q1)*tukeys_const
-        outlier = (counts < (q1-tukeys_range)) | ((q3+tukeys_range) < counts)
-        return outlier
-
-    @staticmethod
-    def counts2ranked_pearson(endog: List[int], model="NB") -> List[int]:
-        """
-        Fit endog (counts) and get pearson residual per entry in endog.
-        
-        Parameters
-        -----
-        endog : List[int]
-            count values
-        
-        Returns
-        -----
-        ranked_pearson : List[float]
-            Ranked pearson correlation (matches order of input.)
-        has_converged : bool
-            Whether the fitter has converged. 
-        """
-        if model == "NB":
-            m = sm.NegativeBinomial(endog, np.ones_like(endog))
-        else:
-            raise NotImplementedError("Currently only simply 'NB' is implemented")
-        nobs = len(endog)
-        m_fitted = m.fit(disp=0)
-
-        statsmodels_major_version = int(sm.__version__.split(".")[1])
-        if statsmodels_major_version >= 14:
-            expec_bincount = m_fitted.predict(which="prob").mean(0)*nobs
-            has_converged = m_fitted.converged
-        else:
-            #Distribution prediction is not included for all models in statsmodels 13.*
-            mu = np.exp(m_fitted.params[0])
-            over_disp = m_fitted.params[1]
-            p = 1/(1+mu*over_disp)
-            n = mu*p/(1-p)
-            bin_range = list(range(0, endog.max()+1))
-            expec_bin_freq = scipy.stats.nbinom.pmf(bin_range, n, p)
-            expec_bincount = expec_bin_freq*nobs
-            has_converged = m_fitted._results.__dict__["mle_retvals"]["converged"]
-            
-        
-        obs_bincount = np.bincount(endog)
-
-        pearson_res_per_bin = (obs_bincount-expec_bincount)/np.sqrt(expec_bincount)
-        pearson_res_per_identifer = pearson_res_per_bin[endog] #(expand from bins to obs)
-
-        rank_pearson_res_per_identifier = scipy.stats.rankdata(pearson_res_per_identifer)
-        return rank_pearson_res_per_identifier, has_converged
-
 from dataclasses import dataclass, field
+
+from lib.utils import NB_Utils
+
+class StepFailedError(Exception):
+    ...
+    pass
 
 @dataclass
 class PyMAG_Cache:
@@ -201,7 +28,23 @@ class PyMAG_Cache:
     identifiers_dropped:      Set[str] = field(default_factory=set)
     identifiers_outliers:   Set[str] =  field(default_factory=set)
 
-    
+    def to_dict(cls):
+        outdict = {
+            'identifiers_dropped' : list(cls.identifiers_dropped),
+            'identifiers_outliers' : list(cls.identifiers_dropped)
+        }
+        outdict.update({
+            'iterations ':{
+                i : {
+                'mse': cls.iter_detection_mse[i],
+                'identifiers': list(cls.iter_identifiers[i])
+                }
+                for i in range(cls.iterations+1)
+            }
+        })
+        return outdict
+
+
     def __repr__(self):
         dict_repr = ', '.join(
             f'{k}:{type(v)}'
@@ -210,7 +53,6 @@ class PyMAG_Cache:
                 self.__dict__.items()
             )
         )
-
         return f'{self.__class__.__name__}({dict_repr})'
 
 
@@ -219,9 +61,12 @@ class PyMAG:
     Implementation of NegBinom optimisation of kmer catalogue.
     The implementation is based on the original work MAGinator by Trine Zachariasen.
 
-    The class implements an catalogue refiner which attempts take a count matrix with rows
-    of identifiers and columns of samples and determine a subset of identifiers which have
-    the best fit to a NegativeBinomial distribution.
+    The class implements an catalogue refiner which takes a count matrix with rows
+    of identifiers and columns of samples and attempts to determine a subset of identifiers which
+    have the best fit to a detection saturation curve.
+
+    In essense the refinement attempts to improve the fit to the detection curve by choosing those
+    identifiers which count best fit a NegativeBinomial distribution.
 
     ...
 
@@ -229,6 +74,23 @@ class PyMAG:
     ----------
     df_counts : pd.DataFrame
         Dataframe containing the counts from fp_counts subset to identifier in fp_meta
+
+    Static Methods:
+    -----
+    refine_all:
+        Takes a list of counts and metafiles and instantiates a PyMAG class for each and runs refinement.
+        Main interface unless doing manual tuning.
+    Class Methods:
+    -----
+    preflight:
+        Runs input check, initiates cache with a "hot start"
+    run_refinement:
+        Runs the iterative refinement (multiple class to refine_step() )
+    generate_minimal_output:
+        Writes count matrix for refined identifier set and mse iterations to output dir.
+    generate_verbose_output:
+        Writes detection saturation plots and dumps cache to output.
+    
     
     """
     def __init__(self, fp_counts: Path, fp_meta: Path, max_threads=2, catalogue_size:int=500, logfile=None, verbosity="DEBUG", rng_seed=2112):
@@ -429,6 +291,9 @@ class PyMAG:
         """
         Calculates the mean rank mse for each identifier.
 
+        Each id is ranked within each sample and then the average rank is found
+        for each identifier across all samples.
+
         Parameters:
         -------
         identifiers : List[str]
@@ -444,7 +309,13 @@ class PyMAG:
         
         sample_list = df_count.values.T
         with multiprocessing.Pool(self.max_threads) as p:
-            rank_matrices, has_converged =  zip(*p.map(NB_Utils.counts2ranked_pearson, sample_list))
+            rank_matrices, failed_fit =  zip(*p.map(NB_Utils.counts2ranked_pearson, sample_list))
+
+
+        if any(failed_fit):
+            self.log.warning(f"Fit warning, not used in ranking: {sum(failed_fit)}/{len(rank_matrices)} samples")
+            self.log.debug(f"Fit warning, not used in ranking: {df_count.columns.values[list(failed_fit)]}")
+            rank_matrices = [matrix for matrix, has_failed in zip(rank_matrices, failed_fit) if not has_failed]
         identifier_to_sample_ranks = np.array(rank_matrices).T
         identifier_mean_rank = identifier_to_sample_ranks.mean(1)
         return identifier_mean_rank
@@ -464,7 +335,7 @@ class PyMAG:
         mse = NB_Utils.calculate_detection_mse(counts)
         return mse
 
-    def preflight(self, max_retries: int = 10) -> None:
+    def preflight(self, max_retries: int = 50) -> None:
         """
         Initial steps before the full refining produce.
 
@@ -475,6 +346,7 @@ class PyMAG:
         -----
         max_retries : int
             Number of retries is attempted if a random selection of identifiers fail
+
         Setting
         -----
         Updates cache
@@ -487,9 +359,9 @@ class PyMAG:
         max_accepted_outlier_occ = self.df_meta.query("not is_outlier")["outlier_occ"].max()
         self.df_meta["outlier_degree"] = self.df_meta.outlier_occ / max_accepted_outlier_occ
 
-        self.df_meta["identifier_desireability"] = self.df_meta["prevalence"] - self.df_meta["outlier_degree"]
+        self.df_meta["identifier_desireability"] = self.df_meta["prevalence"] + (1 - self.df_meta["outlier_degree"])
 
-        self.cache.identifiers_outliers = identifiers_outliers
+        self.cache.identifiers_outliers.update(identifiers_outliers)
         
         df_meta_eligible = self.df_meta.loc[~self.df_meta["identifier"].isin(identifiers_outliers)]
 
@@ -502,16 +374,9 @@ class PyMAG:
             df_random_subset = df_meta_eligible.sample(n=self.catalogue_size, weights="identifier_desireability", replace=False, random_state=self.rng_state)
             identifiers_random = df_random_subset.identifier.values
 
-            #with warnings.catch_warnings():
-            #warnings.filterwarnings('once')
             try:
                 ranks_identifier_random = self.calculate_mean_rank_mse(identifiers=identifiers_random)
                 identifier_random_detection_mse = self.calculate_detection_mse(identifiers=identifiers_random)
-                #NB_Utils.calculate_detection_mse(self.df_counts.loc[identifiers_random,:])
-            # except Warning as we:
-            #     retries += 1
-            #     self.log.exception(f"Warning from fitter, re-sampling: {retries}/{max_retries}")
-            #     pass
             except Exception as ee:
                 retries += 1
                 self.log.exception(f"Exception during fitting, re-sampling: {retries}/{max_retries}")
@@ -521,8 +386,7 @@ class PyMAG:
                 starter_compositions_mse.append(identifier_random_detection_mse)
                 starter_compositions_ranks.append(ranks_identifier_random)
                 self.log.debug(f"Added a valid starter composition {len(starter_compositions)}/10")
-            #finally:
-            #    warnings.filterwarnings()
+
         best_iteration = np.argmin(starter_compositions_mse)
 
         self.log.info(f"Initial identifiers found. Initial MSE: {starter_compositions_mse[best_iteration]:.2f}")
@@ -531,7 +395,7 @@ class PyMAG:
         self.cache.iter_identifiers.append(set(starter_compositions[best_iteration]))
         self.cache.iter_detection_mse.append(starter_compositions_mse[best_iteration])
 
-    def _get_substitute_identifiers(self, n_substitutes:int, black_list:Set[str]= set(),  retry_identifiers:bool=True):
+    def get_substitute_identifiers(self, n_substitutes:int, black_list:Set[str]= set(),  retry_identifiers:bool=True):
         """
         Find a set of possible substitute identifiers.
         The possible substitutes are drawn from a pool of candidates.
@@ -585,6 +449,10 @@ class PyMAG:
             Number attempts to include new kmers to get and improvement.
         min_improvement : float
             Minimum fractional improvement required 0.1=10% smaller mse.
+        
+        Setting
+        -----
+        Updates cache
         """
         cur_identifiers = self.cache.iter_identifiers[self.cache.iterations]
         cur_mse         = self.cache.iter_detection_mse[self.cache.iterations]
@@ -596,6 +464,7 @@ class PyMAG:
         cur_ranks     = self.calculate_mean_rank_mse(cur_identifiers_list)
         max_kept_rank = np.percentile(cur_ranks, 100-step_size)
         identifiers_keep = cur_identifiers_list[cur_ranks<=max_kept_rank]
+        identifiers_drop = cur_identifiers_list[cur_ranks>max_kept_rank]
         self.log.debug(f"Keeping ({len(identifiers_keep)}) identifiers")
 
         n_new_identifiers = self.catalogue_size - len(identifiers_keep) #ensure we dont drop a id from numerical stuff in max_kept_rank
@@ -604,10 +473,9 @@ class PyMAG:
         new_mse  = None
         new_identifiers = set()
         while attempts < max_attempts:
-            attempt_candidates  = self._get_substitute_identifiers(n_substitutes=n_new_identifiers, retry_identifiers=True)
+            attempt_candidates  = self.get_substitute_identifiers(n_substitutes=n_new_identifiers, retry_identifiers=True)
             attempt_identifiers =  np.append(identifiers_keep, list(attempt_candidates))
             attempt_mse         = self.calculate_detection_mse(attempt_identifiers)
-            self.log.debug(f"Attempt: ({attempts+1})/({max_attempts}) - MSE: {attempt_mse:.2f}")
 
             perc_change = (attempt_mse-cur_mse)/cur_mse
             self.log.debug(f"Attempt: ({attempts+1})/({max_attempts}) - MSE: {attempt_mse:.2f} - Change: {perc_change*100:.1f}%")
@@ -622,11 +490,219 @@ class PyMAG:
             self.cache.iterations +=1
             self.cache.iter_identifiers.append(set(new_identifiers))
             self.cache.iter_detection_mse.append(new_mse)
+            self.cache.identifiers_dropped.update(identifiers_drop)
         else:
             #todo. custome error
-            raise RuntimeError("Failed stepping")
+            err_msg = f"Failed improving with stepsize = {step_size}%, minimum improvement = {min_improvement}%"
+            #self.log.error(err_msg)
+            raise StepFailedError(err_msg)
+
+    def run_refinement(self, step_sizes:List[int]=[40,35,30,25,20,15,10,5,2], retries:int=10, min_improvement:float=0.05) -> None:
+        """
+        Main function running the full improvement cycle.
+        Will run through the step_sizes and try (retries) times to iterratively improve the detection MSE.
+
+        Parameters
+        -----
+        step_sizes : List[int] = [40,35,30,25,20,15,10,5,2]
+            List of step sizes (% worst identifiers to drop).
+            Recommended large -> small 
+        retries : int = 10
+            Number of tries for each step_size
+        min_improvement : float = 0.05
+            Minimum relative MSE improvement for keeping a step. 
+
+        Setting
+        -----
+        Updates cache
+        """
+
+        for ss in step_sizes:
+            step_size_has_succeded = False
+            for step_iter in range(retries):
+                try:
+                    self.refine_step(step_size=ss, max_attempts=retries, min_improvement=min_improvement)
+                except StepFailedError:
+                    pass
+                else:
+                    step_size_has_succeded= True
+            if step_size_has_succeded:
+                pass
+            else:
+                self.log.warning(f"stepsize: ({ss}%) Failed.")
+
+        total_tries = len(step_sizes)*retries
+        final_iter = self.cache.iterations
+        final_mse  = self.cache.iter_detection_mse[final_iter]
+        mse_improvement = ((final_mse - self.cache.iter_detection_mse[0]) / self.cache.iter_detection_mse[0])*100
+        self.log.info(f"Succesful iterations: ({final_iter}/{total_tries}): Final MSE: ({final_mse:.2f}) Improvement: {mse_improvement:.2f}%")
+
+    def generate_minimal_output(self, output: Path):
+        output = Path(output)
+        if not output.is_dir():
+            raise FileNotFoundError(output)
+        final_iter = self.cache.iterations
+        final_identifiers = self.cache.iter_identifiers[final_iter]
+
+        final_counts = self.df_counts.loc[list(final_identifiers), :]
+        mses = self.cache.iter_detection_mse
+
+        final_counts.to_csv(output/"counts_refined.tsv", sep="\t", index=True)
+        
+        pd.DataFrame({
+            'iteration': list(range(final_iter+1)),
+            'mse': mses
+        }).to_csv(output/"mse.tsv", sep="\t", index=False)
+        self.log.info(f"extracted counts (for refined identifiers) and mse overview -> {output}")
 
 
+    def generate_detection_curve(self, identifiers) -> plotly.graph_objects.Figure:
+        """
+        """
+        df_plot = self.df_counts[identifiers, :]
+        fig = NB_Utils.plot_expected_detection_curve(df_plot)
+        return fig
+    
+    def generate_verbose_output(self, output: Path) -> None:
+        """
+        """
+        #Generate figure
+        output = Path(output)
+        if not output.is_dir():
+            raise FileNotFoundError(output)
+        final_iteration = self.cache.iterations
+
+        initial_identifiers = self.cache.iter_identifiers[0]
+        final_identifiers   = self.cache.iter_identifiers[final_iteration]
+
+        random_identifiers = self.rng_state.choice(self.df_counts.index, size=self.catalogue_size, replace=False)
+        
+        fig_random = NB_Utils.plot_expected_detection_curve(self.df_counts.loc[list(random_identifiers),:].values)
+        fig_raw    = NB_Utils.plot_expected_detection_curve(self.df_counts.values)
+        fig_ini    = NB_Utils.plot_expected_detection_curve(self.df_counts.loc[list(initial_identifiers),:].values)
+        fig_final  = NB_Utils.plot_expected_detection_curve(self.df_counts.loc[list(final_identifiers),:].values)
+
+        fig_random.write_image(output/"detection_curve_random.png")
+        fig_raw.write_image(output/"detection_curve_raw.png")
+        fig_ini.write_image(output/"detection_curve_initial.png")
+        fig_final.write_image(output/"detection_curve_final.png")
+
+        #Dump cache
+        dump_file = output/"pymag_cache.json"
+        dump_file.write_text(json.dumps(self.cache.to_dict(), indent=True))
+
+        self.log.info(f"Plots and cache dumped -> {output}")
+
+        
+    @staticmethod
+    def refine_all(
+        fp_count_files: Union[Path, List[Path]], 
+        fp_meta_files: List[Path], 
+        output: Path, 
+        verbose_output=True, 
+        kw_pymag: dict={}, 
+        kw_refinement: dict={}) -> None:
+        """
+        Static method to run PyMAG refinement of catalogue for multiple catalogues.
+        Instanciates the PyMAG class for each catalogue and runs refinement.
+
+        Usage:
+            PyMAG.refine_all(fp_count_files=[...], fp_meta_files=[...], ...)
+
+        Parameters
+        -----
+        fp_count_files : Path or List[Path]
+            Either a concatted countfile containing counts for all identifiers descriped in the metafiles
+            or individual countfiles matching the fp_meta_files parameter.
+            index = identifiers, cols = samples
+        fp_meta_fields : List[Path]
+            Note filenames from metafiles are used for subdirs - ensure uniqueness
+            metafiles describing the identifiers - one per refined catalogue
+            expected cols: identifier, prevalence, lenght
+            NOTE: no headers.
+        verbose_output : bool = True
+            If False only refined identifiers are printed.
+            If True plots and reports are generated.
+        output : Path
+            Top output directory, for each catalogue a subdir is created.
+        kw_pymag:
+            other key word arguments passed to PyMAG initialiser.
+        kw_refinement:
+            other keyword arguments passed to PyMAG run_refinement method.
+
+        Returns
+        -----
+        None
+            Output are written to output directory subfolders.
+"""
+        #Input control
+        if not isinstance(fp_count_files, list):
+            fp_count_files = [Path(fp_count_files) for x in range(fp_count_files)]
+        else:
+            fp_count_files = [Path(f) for f in fp_count_files]
+        fp_meta_files = [Path(f) for f in fp_meta_files]
+        output = Path(output)
+
+        for file in fp_count_files+fp_meta_files:
+            if not file.is_file():
+                raise FileNotFoundError(file)
+        
+        if output.is_dir():
+            logging.warn("Output directory already exists - may overwrite existing files. Consider cleaning first.")
+        else:
+            output.mkdir(exist_ok=True)
+
+        run_overview = []
+
+        for fp_count, fp_meta in zip(fp_count_files, fp_meta_files):
+            name_catalogue = fp_meta.stem
+            output_catalogue = output / name_catalogue
+            output_catalogue.mkdir(exist_ok=True)
+            logfile_catalogue = output_catalogue / "log.txt"
+
+            #initialization
+            try:
+                pymag = PyMAG(
+                    fp_counts=fp_count, 
+                    fp_meta=fp_meta, 
+                    logfile=logfile_catalogue,
+                    **kw_pymag)
+            except Exception as err:
+                run_overview.append(
+                    {'catalogue':name_catalogue, 'status': 'Failed: Initialisation', 'error': err}
+                )
+                continue
+            #Preflight
+            try:
+                pymag.preflight()
+            except Exception as err:
+                run_overview.append(
+                    {'catalogue':name_catalogue, 'status': 'Failed: Preflight', 'error': err}
+                )
+                continue
+
+            #Refinement
+            try:
+                pymag.run_refinement(**kw_refinement)
+            except Exception as err:
+                run_overview.append(
+                    {'catalogue':name_catalogue, 'status': 'Failed: Refinement', 'error': err}
+                )
+                continue
+            else:
+                #minimum output:
+                pymag.generate_minimal_output(output_catalogue)
+
+                if verbose_output:
+                    pymag.generate_verbose_output(output_catalogue)
+                run_overview.append(
+                    {'catalogue':name_catalogue, 'status': 'Success: Output Generated', 'error': None}
+                )
+        pd.DataFrame(
+            run_overview
+        ).sort_values("catalogue").to_csv(output/"run_overview.tsv", sep="\t", index=False)
+
+            
 
 
 
