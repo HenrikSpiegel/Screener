@@ -8,6 +8,7 @@ from qsub_modules.blastn_pw import PairwiseBlast
 from qsub_modules.preprocess import Preprocessor
 from qsub_modules.mcl_clustering import MCLClustering
 from qsub_modules.kmerquantifier import QuantifierKmer
+from qsub_modules.mapquantifier import QuantifierMap
 from qsub_modules.maginator import MAGinator
 
 #from qsub_modules.maginator import MAGinator
@@ -378,8 +379,6 @@ python -m lib.magpy\
     success_file=WD_DATA/"MAGpy/.success"
 )
 
-
-
 dependencies.append(
     ('MAGpy.main', 'MAGpy.abundances')
 )
@@ -397,11 +396,47 @@ python scripts/counts_to_abundances.py\
     success_file=WD_DATA/"abundances/.success"
 )
 
+############# 
+## Quantification by mapping
+fp_cluster_representatives = WD_DATA / "map_quantification/cluster_representatives.fa"
+# Determine cluster refs:
+dependencies.append(
+    ('mcl_clustering', "mcl_representatives")
+)
+job_id_map["mcl_representatives"] = AddToQue(
+    command=f"""\
+python scripts/get_cluster_representatives.py\
+ --family-json {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
+ --similarity-matrix {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv\
+ --antismash-dir {WD_DATA}/antismash/input_genomes\
+ --outfile {fp_cluster_representatives}\
+""",
+    name="MapQuant.representatives",
+    success_file=WD_DATA/"map_quantification/.success_clustrep"
+)
+
+# add map quantifications.
+mapquant_labels = set()
+for label in GB_LABELS:
+    for sample in range(N_SAMPLES):
+        job_label = f"mapQuant.{label}.{sample}"
+        mapquant_labels.add(job_label)
+        datadir = WD_DATA / f"preprocessed/{label}/sample_{sample}"
+        dependencies.append(({'preprocess.'+label, "mcl_representatives"}, job_label))
+
+        job_id_map[job_label] = QuantifierMap(
+            reads = [
+                datadir / "trimmed.anonymous_reads.fq.gz",  
+                datadir / "trimmed.singleanonymous_reads.fq.gz"],
+            reference=fp_cluster_representatives,
+            output_dir = WD_DATA / f"map_quantification/{label}/sample_{sample}",
+            loglvl=LOGLEVEL
+        )
+
 ######################################################################## 
 ######################## Result Investations ###########################
 
 ###### Analysis 5:
-
 dir_ana_05 = WD_DATA / "results/05_simulation_results"
 dir_ana_05.mkdir(parents=True, exist_ok=True)
 dependencies.append(
@@ -418,12 +453,6 @@ python analysis/05_simulation_result_and_comparison.py\
     name="analysis.05",
     success_file=dir_ana_05/".success"
 )
-
-
-# parser.add_argument("--simulation-overview", required=True, type=Path)
-#     parser.add_argument("--total-abundances", required=True, type=Path)
-#     parser.add_argument("--family-dump", required=True, type=Path)
-#     parser.add_argument("-o", required=True, type=Path)
 
 ###### Analysis 8
 dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
@@ -479,6 +508,21 @@ python analysis/08_mag_diagnostics.py\
 #     loglvl=LOGLEVEL
 # )
 
+dependencies.append(
+    (mapquant_labels.union({"MAGpy.abundances"}), "analysis.14")
+)
+job_id_map["analysis.14"] = AddToQue(
+    command=f"""\
+python analysis/14_compare_map_kmer.py\
+ --dir-map-quant {WD_DATA}/map_quantification\
+ --kmer-abundances {WD_DATA}/abundances/total_abundances.csv\
+ --camisim-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
+ --cluster-json {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
+ -o {WD_DATA}/results/14_compare_map_kmer\
+""",
+    success_file=WD_DATA/"results/14_compare_map_kmer.success",
+    name="analysis.14"
+)
 
 if __name__ == "__main__":
     import argparse

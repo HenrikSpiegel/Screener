@@ -24,12 +24,14 @@ class QuantifierMap(Base):
         self.minMapQ    = minMapQ
         self.minBaseQ   = minBaseQ
 
+        self.success_file = self.output_dir/".success"
+
 
     qsub_requirements = dict(
         modules = "tools anaconda3/2021.05 minimap2/2.6 samtools/1.14 cmseq/1.0.4",
         runtime = 360,
-        cores = 10,
-        ram=40,
+        cores = 20,
+        ram=80,
         )
 
     def preflight(self, check_input=False) -> None:
@@ -41,7 +43,7 @@ class QuantifierMap(Base):
             if not all(x.is_file() for x in self.reads):
                 self.log.error("Reads file not found -> "+self.reads)
                 raise IOError("Reads file not found -> "+self.Reads)
-            self.log.info("Found all input files")
+            self.log.debug("Found all input files")
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
