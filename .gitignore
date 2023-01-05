@@ -166,3 +166,4 @@ success_*
 **/success*
 .snakemake/
 temp/
+results_bak/

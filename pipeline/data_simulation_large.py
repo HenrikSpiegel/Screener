@@ -186,16 +186,16 @@ job_id_map['blast_pw'] = PairwiseBlast(
 
 # add pw analysis of bgc
 dependencies.append(
-    ('blast_pw', 'analysis.01')
+    ('blast_pw', 'analysis_01')
 )
-job_id_map['analysis.01'] = AddToQue(
+job_id_map['analysis_01'] = AddToQue(
     command=f"""\
 python analysis/01_compare_input_bgc_genera.py\
  --blast {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv\
  --genera-table-dir {WD_DATA}/input_genomes\
  -o {WD_DATA}/results/01_compare_input_bgc_genera\
 """,        
-    name='analysis.01',
+    name='analysis_01',
     loglvl=LOGLEVEL,
     success_file= WD_DATA / "results/01_compare_input_bgc_genera/.success"
 )
@@ -212,9 +212,9 @@ job_id_map["mcl_clustering"] = MCLClustering(
 
 # add analysis of clustering.
 dependencies.append(
-    ("mcl_clustering", "analysis.12")
+    ("mcl_clustering", "analysis_12")
 )
-job_id_map["analysis.12"] = AddToQue(
+job_id_map["analysis_12"] = AddToQue(
     command=f"""\
 python analysis/12_inputbgc_with_clustering.py\
  --blast {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv\
@@ -226,7 +226,6 @@ python analysis/12_inputbgc_with_clustering.py\
 )
 
 ### Generate catalogues from clusters.
-
 dependencies.append(
     ({'antismash','mcl_clustering'}, 'catalogue_generation')
 )
@@ -294,14 +293,14 @@ python3 scripts/correct_count_matrices.py\
 dir_ana_13 = WD_DATA/ "results/13_count_distribution"
 dir_ana_13.mkdir(parents=True, exist_ok=True)
 
-dependencies.append(('count.collect', 'analysis.13'))
-job_id_map["analysis.13"] = AddToQue(
+dependencies.append(('count.collect', 'analysis_13'))
+job_id_map["analysis_13"] = AddToQue(
     command = f"""\
 python analysis/13_count_distribution.py\
  --dir-count-matrices {count_matrices_dir}\
  -o {dir_ana_13}/
 """,
-    name = "analysis.13",
+    name = "analysis_13",
     success_file=dir_ana_13/".success"
 )
 
@@ -440,9 +439,9 @@ for label in GB_LABELS:
 dir_ana_05 = WD_DATA / "results/05_simulation_results"
 dir_ana_05.mkdir(parents=True, exist_ok=True)
 dependencies.append(
-    ("MAGpy.abundances", "analysis.05")
+    ("MAGpy.abundances", "analysis_05")
 )
-job_id_map["analysis.05"] = AddToQue(
+job_id_map["analysis_05"] = AddToQue(
     command=f"""\
 python analysis/05_simulation_result_and_comparison.py\
  --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
@@ -450,7 +449,7 @@ python analysis/05_simulation_result_and_comparison.py\
  --family-dump {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
  -o {dir_ana_05}\
 """,
-    name="analysis.05",
+    name="analysis_05",
     success_file=dir_ana_05/".success"
 )
 
@@ -458,9 +457,9 @@ python analysis/05_simulation_result_and_comparison.py\
 dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
 dir_ana_08.mkdir(parents=True, exist_ok=True)
 dependencies.append(
-    ({"camisim.describe_runs",'MAGpy.main'}, 'analysis.08')
+    ({"camisim.describe_runs",'MAGpy.main'}, 'analysis_08')
 )
-job_id_map['analysis.08'] = AddToQue(
+job_id_map['analysis_08'] = AddToQue(
     command=f"""\
 python analysis/08_mag_diagnostics.py\
  --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
@@ -469,7 +468,7 @@ python analysis/08_mag_diagnostics.py\
  --mag-flat {WD_DATA}/MAGpy/screened_flat\
  -o {dir_ana_08}
 """,
-    name="analysis.08",
+    name="analysis_08",
     success_file=dir_ana_08/".succes"
 )
 
@@ -479,9 +478,9 @@ python analysis/08_mag_diagnostics.py\
 # dir_ana_09_pileup = dir_ana_09/"pileup"
 # dir_ana_09_pileup.mkdir(parents=True, exist_ok=True)
 # dependencies.append(
-#     ({"camisim.describe_runs", 'MAGinator.extract'}, 'analysis.09')
+#     ({"camisim.describe_runs", 'MAGinator.extract'}, 'analysis_09')
 # )
-# job_id_map['analysis.09'] = AddToQue(
+# job_id_map['analysis_09'] = AddToQue(
 #     command=f"""\
 # #Run pileup
 # module load samtools/1.14
@@ -509,9 +508,25 @@ python analysis/08_mag_diagnostics.py\
 # )
 
 dependencies.append(
-    (mapquant_labels.union({"MAGpy.abundances"}), "analysis.14")
+    ("MAGpy.main", "analysis_10")
 )
-job_id_map["analysis.14"] = AddToQue(
+job_id_map['analysis_10'] = AddToQue(
+    command = f"""\
+python analysis/10_MAG_compare_nb_fit.py\
+ --dir-count-matrices {WD_DATA}/kmer_quantification/count_matrices\
+ --dir-mag-screened {WD_DATA}/MAGpy/screened_flat\
+ --dataset 0_5GB\
+ -o {WD_DATA}/results/10_MAG_compare_nb_fit\
+""",
+    success_file=WD_DATA / "results/10_MAG_compare_nb_fit/.success",
+    name = "analysis_10"
+)
+
+
+dependencies.append(
+    (mapquant_labels.union({"MAGpy.abundances"}), "analysis_14")
+)
+job_id_map["analysis_14"] = AddToQue(
     command=f"""\
 python analysis/14_compare_map_kmer.py\
  --dir-map-quant {WD_DATA}/map_quantification\
@@ -520,8 +535,8 @@ python analysis/14_compare_map_kmer.py\
  --cluster-json {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
  -o {WD_DATA}/results/14_compare_map_kmer\
 """,
-    success_file=WD_DATA/"results/14_compare_map_kmer.success",
-    name="analysis.14"
+    success_file=WD_DATA/"results/14_compare_map_kmer/.success",
+    name="analysis_14"
 )
 
 if __name__ == "__main__":

@@ -196,5 +196,5 @@ class NB_Utils:
         pearson_res_per_bin = (obs_bincount-expec_bincount)/np.sqrt(expec_bincount)
         pearson_res_per_identifer = pearson_res_per_bin[endog] #(expand from bins to obs)
 
-        rank_pearson_res_per_identifier = scipy.stats.rankdata(pearson_res_per_identifer)
+        rank_pearson_res_per_identifier = scipy.stats.rankdata(np.abs(pearson_res_per_identifer))
         return rank_pearson_res_per_identifier, failed_fit

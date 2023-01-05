@@ -570,7 +570,7 @@ class MAGpy:
     def generate_detection_curve(self, identifiers) -> plotly.graph_objects.Figure:
         """
         """
-        df_plot = self.df_counts[identifiers, :]
+        df_plot = self.df_counts.loc[identifiers, :]
         fig = NB_Utils.plot_expected_detection_curve(df_plot)
         return fig
     
