@@ -114,16 +114,32 @@ def run_cluster(wd, cluster_name, cluster_members, keep_lenght) -> None:
         outfile=cluster_catalogue)
 
 if __name__ == "__main__":
-    fp_clusters = Path("data/ibdmdb/mcl_clustering/out.blast_result.mci.I40.json")
+    import argparse
+
+    desc = """\
+Generate distinct sets of kmers based on a clusters as defined in a json'ed dictionary:
+{cluster_name: [mem1, mem2, ....], ...}
+
+Assumes jellyfish is availble from path.
+"""
+
+    parser= argparse.ArgumentParser(description=desc)
+    parser.add_argument("--cluster-def-json", type=Path, required=True, help="Path to .json describing cluster membership")
+    parser.add_argument("--dir-antismash", type=Path, required=True, help="path to dir containing the antismash output - .gbk files must match member names in cluster-def-json ")
+    parser.add_argument("--wd", type=Path, required=True, help="Working dir for script / jellyfish dumps etc.")
+    parser.add_argument("--n-kmers", type=int, default=10000, help="Maximum number of distinct kmers per cluster [10000]")
+    args = parser.parse_args()
+
+    fp_clusters = args.cluster_def_json     # Path("data/ibdmdb/mcl_clustering/out.blast_result.mci.I40.json")
     clusters = json.loads(fp_clusters.read_bytes())
 
-    dir_antismash = Path("data/ibdmdb/antismash")
+    dir_antismash = args.dir_antismash                #  Path("data/ibdmdb/antismash")
     fasta_all = dir_antismash / "combined_bgc.fa"
 
-    wd = Path("data/ibdmdb/catalogues/")
+    wd = args.wd        #Path("data/ibdmdb/catalogues/")
     dir_jelly = wd /"jelly"
 
-    keep_lenght = 10000
+    keep_lenght = args.n_kmers
 
     # Generate count of global kmers:
     fp_count_all = dir_jelly/"all.jf"
