@@ -218,12 +218,13 @@ job_id_map["analysis_12"] = AddToQue(
     command=f"""\
 python analysis/12_inputbgc_with_clustering.py\
  --blast {WD_DATA}/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv\
- --genera-table-dir {WD_DATA}/input_genomes\
  --mcl-cluster-dir {WD_DATA}/mcl_clustering\
  -o {WD_DATA}/results/12_inputbgc_with_clustering
 """,
     success_file= WD_DATA / "results/12_inputbgc_with_clustering/.success"
 )
+## --genera-table-dir {WD_DATA}/input_genomes\
+
 
 ### Generate catalogues from clusters.
 dependencies.append(
@@ -371,7 +372,7 @@ python -m lib.magpy\
  --verbosity INFO\
  --rng-seed 2812\
  --step-sizes 40 35 30 25 20 15 10 5 2\
- --retries 15\
+ --retries 50\
  --min-improvement 0.02\
 """,
     name="MAGpy.main",
@@ -454,23 +455,23 @@ python analysis/05_simulation_result_and_comparison.py\
 )
 
 ###### Analysis 8
-dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
-dir_ana_08.mkdir(parents=True, exist_ok=True)
-dependencies.append(
-    ({"camisim.describe_runs",'MAGpy.main'}, 'analysis_08')
-)
-job_id_map['analysis_08'] = AddToQue(
-    command=f"""\
-python analysis/08_mag_diagnostics.py\
- --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
- --family-json {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
- --count-mats {WD_DATA}/kmer_quantification/count_matrices_corrected\
- --mag-flat {WD_DATA}/MAGpy/screened_flat\
- -o {dir_ana_08}
-""",
-    name="analysis_08",
-    success_file=dir_ana_08/".succes"
-)
+# dir_ana_08 = WD_DATA / "results/08_mag_diagnostics"
+# dir_ana_08.mkdir(parents=True, exist_ok=True)
+# dependencies.append(
+#     ({"camisim.describe_runs",'MAGpy.main'}, 'analysis_08')
+# )
+# job_id_map['analysis_08'] = AddToQue(
+#     command=f"""\
+# python analysis/08_mag_diagnostics.py\
+#  --simulation-overview {WD_DATA}/camisim/simulation_overview_full.tsv\
+#  --family-json {WD_DATA}/mcl_clustering/out.blast_result.mci.I40.json\
+#  --count-mats {WD_DATA}/kmer_quantification/count_matrices_corrected\
+#  --mag-flat {WD_DATA}/MAGpy/screened_flat\
+#  -o {dir_ana_08}
+# """,
+#     name="analysis_08",
+#     success_file=dir_ana_08/".succes"
+# )
 
 # ###### Analysis 9
 # # #NOTE: Could potentially be split
@@ -508,9 +509,9 @@ python analysis/08_mag_diagnostics.py\
 # )
 
 dependencies.append(
-    ("MAGpy.main", "analysis_10")
+    ("MAGpy.main", "analysis_10.05")
 )
-job_id_map['analysis_10'] = AddToQue(
+job_id_map['analysis_10.05'] = AddToQue(
     command = f"""\
 python analysis/10_MAG_compare_nb_fit.py\
  --dir-count-matrices {WD_DATA}/kmer_quantification/count_matrices\
@@ -518,7 +519,22 @@ python analysis/10_MAG_compare_nb_fit.py\
  --dataset 0_5GB\
  -o {WD_DATA}/results/10_MAG_compare_nb_fit\
 """,
-    success_file=WD_DATA / "results/10_MAG_compare_nb_fit/.success",
+    success_file=WD_DATA / "results/10_MAG_compare_nb_fit/.success.05",
+    name = "analysis_10"
+)
+
+dependencies.append(
+    ("MAGpy.main", "analysis_10.01")
+)
+job_id_map['analysis_10.01'] = AddToQue(
+    command = f"""\
+python analysis/10_MAG_compare_nb_fit.py\
+ --dir-count-matrices {WD_DATA}/kmer_quantification/count_matrices\
+ --dir-mag-screened {WD_DATA}/MAGpy/screened_flat\
+ --dataset 0_1GB\
+ -o {WD_DATA}/results/10_MAG_compare_nb_fit\
+""",
+    success_file=WD_DATA / "results/10_MAG_compare_nb_fit/.success.01",
     name = "analysis_10"
 )
 

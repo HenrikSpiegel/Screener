@@ -83,6 +83,7 @@ def error_rate_variations():
             title="Coverage estimates from simulated read of various sequencing errors<br><sup>Simulated coverage is 33% with read length 150",
             labels={"type":""})
     fig.add_hline(y=1/3, line_dash='dot', annotation_text="Coverage", annotation_position="top left")
+    fig.update_layout(template="plotly_white")
     fig.write_image(output_dir/"coverage_estimates_error.png", width=1000, height=500)
 
 def read_length_variations():
@@ -134,6 +135,7 @@ def read_length_variations():
             title="Coverage estimates from simulated read of various read lengths<br><sup>Simulated coverage is 33% at 3% sequencing error",
             labels={"type":""})
     fig.add_hline(y=1/3, line_dash='dot', annotation_text="Coverage", annotation_position="top left")
+    fig.update_layout(template="plotly_white")
     fig.write_image(output_dir/"coverage_estimates_readlength.png", width=1000, height=500)
 
 if __name__ == "__main__":

@@ -5,27 +5,28 @@ import argparse
 import json
 import re
 
-def generate_heatmap_w_clustering(fp_pw_blast:Path, genera_tables_dir:Path, member_to_cluster:dict):
+def generate_heatmap_w_clustering(fp_pw_blast:Path, member_to_cluster:dict): #, genera_tables_dir:Path
 
     df_pairwise = pd.read_csv(fp_pw_blast, sep="\t", index_col=0)
 
     #Genera tables to get genus
-    genera_tables = Path(genera_tables_dir).glob("*_selected.tsv")
-    df_genera = pd.concat(
-        pd.read_csv(genus_table, sep="\t")[["assembly_accession", "organism_name"]].assign(genus = genus_table.name.rsplit("_",1)[0])
-        for genus_table in genera_tables
-    )
-    df_genera.sort_values("organism_name")
+    #genera_tables = Path(genera_tables_dir).glob("*_selected.tsv")
+    # df_genera = pd.concat(
+    #     pd.read_csv(genus_table, sep="\t")[["assembly_accession", "organism_name"]].assign(genus = genus_table.name.rsplit("_",1)[0])
+    #     for genus_table in genera_tables
+    # )
+    # df_genera.sort_values("organism_name")
 
 
     df_sorter = pd.DataFrame({"bgc": df_pairwise.index.tolist()})
-    df_sorter[["assembly_accession","region"]] = df_sorter.bgc.str.rsplit(".",1, expand=True)
-    df_sorter_combined = df_sorter.merge(df_genera, on="assembly_accession")
+    df_sorter[["assembly_accession","region"]] = df_sorter.bgc.str.rsplit(pat=".", n=1, expand=True)
+    df_sorter_combined = df_sorter
+    #df_sorter_combined = df_sorter.merge(df_genera, on="assembly_accession")
 
     #add clustering:
     df_sorter_combined["clusterid"] = [member_to_cluster[bgc] for bgc in df_sorter_combined.bgc]
 
-    df_sorter_combined.sort_values(["clusterid", "organism_name","region"], inplace=True, ascending=True)
+    df_sorter_combined.sort_values(["clusterid","assembly_accession","region"], inplace=True, ascending=True)
     df_sorter_combined.reset_index(drop=True, inplace=True)
     ordered_accession = df_sorter_combined.bgc.values
 
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--blast", required=True, type=Path)
-    parser.add_argument("--genera-table-dir", required=True, type=Path)
+    #parser.add_argument("--genera-table-dir", required=True, type=Path)
     parser.add_argument("--mcl-cluster-dir", required=True, type=Path)
     parser.add_argument("-o", required=True, type=Path)
     args = parser.parse_args()
@@ -78,7 +79,7 @@ if __name__ == "__main__":
 
 
     fp_pw_blast = args.blast    #Path("../data/simulated_data_large/blast_pairwise/input_bgc/pairwise_table_symmetric.tsv")
-    genera_tables_dir = args.genera_table_dir   #Path("../data/simulated_data_large/input_genomes/genera_tables")
+    #genera_tables_dir = args.genera_table_dir   #Path("../data/simulated_data_large/input_genomes/genera_tables")
     cluster_jsons = Path(args.mcl_cluster_dir).glob("*mci.I*.json")   #Path("../data/simulated_data_large/mcl_clustering/").glob("*mci.I*")
 
     regex_mcl_name = re.compile(r"\.(mci\.I\d+)")
@@ -97,7 +98,7 @@ if __name__ == "__main__":
 
         out_fig = generate_heatmap_w_clustering(
             fp_pw_blast       = fp_pw_blast, 
-            genera_tables_dir = genera_tables_dir,
+            #genera_tables_dir = genera_tables_dir,
             member_to_cluster = member_to_cluster)
 
         regex_res = regex_mcl_name.search(cluster_json.name)

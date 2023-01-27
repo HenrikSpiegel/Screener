@@ -5,6 +5,7 @@ from Bio import SeqIO
 from pathlib import Path
 import gzip
 
+
 def get_average_length(files: List[Path]):
     combined_length = 0
     n_reads = 0

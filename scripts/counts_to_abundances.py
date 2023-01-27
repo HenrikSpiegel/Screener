@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import statsmodels.api as sm
 import numpy as np
+from collections import defaultdict
 
 def error_correction(values, k:int=21, error_rate:float=0.03):
     correction_value = (1-error_rate)**k
@@ -34,7 +35,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--count-matrices", required=True, type=Path, help="dir containing count matrices")
     parser.add_argument("--mag-screened", required=True, type=Path, help="Dir containing extracted flat _kmers.tsv files")
-    parser.add_argument("--read-len-json", required=True, type=Path, help="file containing avg readlenghts for the samples.")
+    parser.add_argument("--read-len-json", type=Path, help="file containing avg readlenghts for the samples.")
+    parser.add_argument("--readlen-const", type=float, default=150,  help="Set constant expected readlen")
     parser.add_argument("--kmer-len", required=True, type=int)
     parser.add_argument("--error-rate-est", required=True, type=float)
     parser.add_argument("-o", required=True, type=Path)
@@ -48,17 +50,20 @@ if __name__ == "__main__":
     outdir = args.o
     outdir.mkdir(parents=True, exist_ok=True)
 
-    json_avg_readlen = args.read_len_json
+    #
     error_rate_estimate = args.error_rate_est
     kmer_len = args.kmer_len
 
     ####
 
-    dict_avg_readlen = json.loads(json_avg_readlen.read_text())
-    sample_to_readlen = {
-        ".".join((Path(k).parent.name, Path(k).name)):v
-        for k,v in dict_avg_readlen.items()
-    }
+    if args.read_len_json:
+        dict_avg_readlen = json.loads(args.read_len_json.read_text()) #spaghetti leftover from dataset.sample sample structure 
+        sample_to_readlen = {
+            ".".join((Path(k).parent.name, Path(k).name)):v
+            for k,v in dict_avg_readlen.items()
+        }
+    else:
+        sample_to_readlen = defaultdict(lambda: args.readlen_const)
 
     count_matrices = [x for x in dir_count_matrices.glob("*.tsv") if not x.name.startswith("counts_all")]
 
@@ -69,6 +74,7 @@ if __name__ == "__main__":
     for fp_count in count_matrices:
         catalogue_name = fp_count.stem
         fp_catalogue = dir_MAGinator/ (catalogue_name+"_kmers.csv")
+        if not fp_catalogue.is_file(): continue
         df_catalogue_MAG = pd.read_csv(fp_catalogue).melt(var_name = "method", value_name="kmer")
         
         
@@ -95,7 +101,7 @@ if __name__ == "__main__":
         # Apply corrections
         corrected = []
         for ds_sample, df_i in df_estimates.groupby("dataset_sample"):
-            avg_readlen = sample_to_readlen[ds_sample]
+            avg_readlen = sample_to_readlen.get(ds_sample, 100)
 
             for est_col in ["negbinom_mu","median"]:
                 df_i[est_col+"_corr"] = combined_correction(

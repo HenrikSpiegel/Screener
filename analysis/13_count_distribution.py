@@ -189,7 +189,15 @@ if __name__ == "__main__":
             fig_comp.update_layout(
                 title = f"Count Distributions for BGC-group: {bgc_catalogue}<br><sup>{name_ds}",
                 boxmode="group",
-                legend = dict(title = "Is Outlier")
+                template="plotly_white",
+                legend = dict(
+                        title="Outlier",
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    )
             )
             out_subdir = outdir/bgc_catalogue
             out_subdir.mkdir(parents=True, exist_ok=True)

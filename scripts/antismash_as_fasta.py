@@ -40,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument("-i",required=True, help="Antismash output dir")
     parser.add_argument("-o", help="output .fa")
     args = parser.parse_args()
-    gbk_files = [file for file in Path(args.i).glob("*.gbk") if not "combined" in file.name]
+    gbk_files = [file for file in Path(args.i).glob("*region*.gbk")]
     #gbk_files = [os.path.join(args.i, x) for x in os.listdir(args.i) if x.endswith(".gbk") and x != "combined.gbk"]
 
     if args.o:

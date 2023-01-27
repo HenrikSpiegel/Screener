@@ -167,3 +167,4 @@ success_*
 .snakemake/
 temp/
 results_bak/
+NB_report_plots/
